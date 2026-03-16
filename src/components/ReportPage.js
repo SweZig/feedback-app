@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getFilteredResponses, getResponsesByDateRange } from '../utils/storage';
-import { calculateNps, categorize } from '../utils/npsCalculations';
+import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
 import DistributionBar from './DistributionBar';
 import CommentList from './CommentList';
