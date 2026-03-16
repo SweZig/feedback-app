@@ -1,0 +1,60 @@
+.score-selector {
+  margin-bottom: 1.5rem;
+}
+
+.score-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+  margin-bottom: 0.5rem;
+}
+
+.score-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.score-btn {
+  flex: 1;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s, opacity 0.15s;
+  opacity: 0.7;
+}
+
+.score-btn:hover {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+.score-btn--selected {
+  opacity: 1;
+  transform: scale(1.12);
+  border-color: var(--color-text);
+}
+
+.score-btn--detractor {
+  background: var(--color-detractor);
+  color: #fff;
+}
+
+.score-btn--passive {
+  background: var(--color-passive);
+  color: #fff;
+}
+
+.score-btn--promoter {
+  background: var(--color-promoter);
+  color: #fff;
+}
+
+.score-btn--neutral {
+  background: #bdc3c7;
+  color: #fff;
+}
