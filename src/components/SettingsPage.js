@@ -9,7 +9,32 @@ import {
   reorderCustomers,
   DEMO_CUSTOMER_ID,
 } from '../utils/settings';
+import { parseBackupFile, importSelectedBackup } from '../utils/backup';
 import './SettingsPage.css';
+
+// Export only selected customers to JSON
+function exportSelectedBackup(selectedIds, customers) {
+  const allResponsesRaw = localStorage.getItem('npsResponses');
+  const allResponses = allResponsesRaw ? JSON.parse(allResponsesRaw) : [];
+  const selectedCustomers = customers.filter((c) => selectedIds.includes(c.id));
+  const selectedResponses = allResponses.filter((r) => selectedIds.includes(r.customerId));
+  const activeId = localStorage.getItem('npsActiveCustomerId');
+
+  const data = {
+    npsCustomers: selectedCustomers,
+    npsResponses: selectedResponses,
+    npsActiveCustomerId: activeId,
+  };
+
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `feedback-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function SettingsPage({ onSettingsChange }) {
   const [customers, setCustomers] = useState(getCustomers);
@@ -23,11 +48,22 @@ function SettingsPage({ onSettingsChange }) {
   const [dragAnswerIdx, setDragAnswerIdx] = useState(null);
   const [dragOverAnswerIdx, setDragOverAnswerIdx] = useState(null);
 
+  // Export selection
+  const allIds = customers.map((c) => c.id);
+  const [selectedExportIds, setSelectedExportIds] = useState(allIds);
+
+  // Import state
+  const [parsedBackup, setParsedBackup] = useState(null);
+  const [selectedImportIds, setSelectedImportIds] = useState([]);
+  const [importStatus, setImportStatus] = useState(null);
+
   const active = customers.find((c) => c.id === activeId) || null;
 
   function refresh() {
-    setCustomers(getCustomers());
+    const updated = getCustomers();
+    setCustomers(updated);
     setActiveId(getActiveCustomerId());
+    setSelectedExportIds(updated.map((c) => c.id));
     onSettingsChange();
   }
 
@@ -109,6 +145,59 @@ function SettingsPage({ onSettingsChange }) {
     if (!active) return;
     updateCustomer(active.id, { customLogo: null });
     refresh();
+  }
+
+  // Export checkboxes
+  function toggleExportCustomer(id) {
+    setSelectedExportIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function toggleExportAll() {
+    setSelectedExportIds((prev) =>
+      prev.length === allIds.length ? [] : allIds
+    );
+  }
+
+  // Import
+  async function handleFileSelected(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const parsed = await parseBackupFile(file);
+      setParsedBackup(parsed);
+      setSelectedImportIds(parsed.customers.map((c) => c.id));
+      setImportStatus(null);
+    } catch {
+      setImportStatus('error');
+      setParsedBackup(null);
+    }
+    e.target.value = '';
+  }
+
+  function toggleImportCustomer(id) {
+    setSelectedImportIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  function toggleImportAll() {
+    if (!parsedBackup) return;
+    const allBackupIds = parsedBackup.customers.map((c) => c.id);
+    setSelectedImportIds((prev) =>
+      prev.length === allBackupIds.length ? [] : allBackupIds
+    );
+  }
+
+  function handleConfirmImport() {
+    if (!parsedBackup || selectedImportIds.length === 0) return;
+    const ok = importSelectedBackup(parsedBackup, selectedImportIds);
+    setImportStatus(ok ? 'ok' : 'error');
+    setParsedBackup(null);
+    setSelectedImportIds([]);
+    if (ok) refresh();
+    setTimeout(() => setImportStatus(null), 3000);
   }
 
   return (
@@ -385,6 +474,124 @@ function SettingsPage({ onSettingsChange }) {
           </div>
         </div>
       )}
+
+      {/* Backup card */}
+      <div className="settings-card">
+        <h2>Säkerhetskopiering</h2>
+
+        {/* Export */}
+        <div className="setting-row setting-row--col">
+          <div className="setting-info">
+            <h3>Exportera backup</h3>
+            <p>Välj vilka kedjor som ska ingå i backup-filen.</p>
+          </div>
+          <div style={{ width: '100%', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.75rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedExportIds.length === allIds.length}
+                  onChange={toggleExportAll}
+                  style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
+                />
+                <strong>Alla kedjor</strong>
+              </label>
+              {customers.map((c) => (
+                <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', paddingLeft: '1.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedExportIds.includes(c.id)}
+                    onChange={() => toggleExportCustomer(c.id)}
+                    style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
+                  />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+            <button
+              className="settings-btn settings-btn--primary"
+              disabled={selectedExportIds.length === 0}
+              onClick={() => exportSelectedBackup(selectedExportIds, customers)}
+            >
+              Exportera
+            </button>
+          </div>
+        </div>
+
+        {/* Import */}
+        <div className="setting-row setting-row--col">
+          <div className="setting-info">
+            <h3>Importera backup</h3>
+            <p>Välj en backup-fil och sedan vilka kedjor som ska importeras. Data slås ihop med befintlig.</p>
+          </div>
+          {!parsedBackup ? (
+            <label className="settings-upload" style={{ marginTop: '0.5rem' }}>
+              <span className="settings-btn settings-btn--primary">Välj fil...</span>
+              <input
+                type="file"
+                accept=".json"
+                hidden
+                onChange={handleFileSelected}
+              />
+            </label>
+          ) : (
+            <div style={{ width: '100%', marginTop: '0.5rem' }}>
+              <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)' }}>
+                Välj kedjor att importera:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.75rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedImportIds.length === parsedBackup.customers.length}
+                    onChange={toggleImportAll}
+                    style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
+                  />
+                  <strong>Alla kedjor</strong>
+                </label>
+                {parsedBackup.customers.map((c) => (
+                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', paddingLeft: '1.5rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedImportIds.includes(c.id)}
+                      onChange={() => toggleImportCustomer(c.id)}
+                      style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
+                    />
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="settings-btn settings-btn--primary"
+                  onClick={handleConfirmImport}
+                  disabled={selectedImportIds.length === 0}
+                >
+                  Importera
+                </button>
+                <button
+                  className="settings-btn"
+                  style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
+                  onClick={() => { setParsedBackup(null); setSelectedImportIds([]); }}
+                >
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {importStatus === 'ok' && (
+          <p style={{ color: 'var(--color-promoter)', margin: '0.5rem 0 0' }}>
+            ✓ Data importerad!
+          </p>
+        )}
+        {importStatus === 'error' && (
+          <p style={{ color: 'var(--color-detractor)', margin: '0.5rem 0 0' }}>
+            ✗ Ogiltig fil – kontrollera att det är en giltig backup.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

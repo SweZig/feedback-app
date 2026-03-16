@@ -31,10 +31,6 @@ function ReportPage({ activeCustomer }) {
     setFilterDays(days);
   }
 
-  function handleDateRangeClick() {
-    setDateRange(true);
-  }
-
   return (
     <div className="report">
       {activeCustomer && (
@@ -53,7 +49,7 @@ function ReportPage({ activeCustomer }) {
         ))}
         <button
           className={`filter-btn ${dateRange ? 'filter-btn--active' : ''}`}
-          onClick={handleDateRangeClick}
+          onClick={() => setDateRange(true)}
         >
           Datumintervall
         </button>
