@@ -27,7 +27,7 @@ src/
 │   ├── Navigation.js/css         # Toppmeny med logo + sidnavigering
 │   ├── SurveyPage.js/css         # Enkätformuläret
 │   ├── ReportPage.js/css         # Rapportsidan med filter och NPS
-│   ├── SettingsPage.js/css       # Inställningar (5-sektions vänstermeny)
+│   ├── SettingsPage.js/css       # Inställningar (4-sektions vänstermeny)
 │   ├── ScoreSelector.js/css      # NPS 0–10 knappar
 │   ├── DistributionBar.js/css    # Fördelningsbar (kritiker/passiva/ambassadörer)
 │   └── CommentList.js/css        # Kommentarslista i rapporten
@@ -49,9 +49,21 @@ src/
   "id": "uuid",
   "name": "ICA Gruppen",
   "customLogo": "base64...",
-  "physicalConfig": { ... },
-  "onlineConfig": { ... },
-  "otherConfig": { ... },
+  "physicalConfig": {
+    "npsColorMode": "colored",
+    "freeTextEnabled": true,
+    "countdownSeconds": 6,
+    "predefinedAnswersEnabled": false,
+    "predefinedAnswers": [],
+    "followUpEnabled": false
+  },
+  "onlineConfig": {
+    "freeTextEnabled": true,
+    "predefinedAnswersEnabled": false,
+    "predefinedAnswers": [],
+    "followUpEnabled": false
+  },
+  "otherConfig": { "...samma som online..." },
   "departments": [
     { "id": "uuid", "name": "ICA Stockholm City", "uniqueCode": "STO-1", "order": 0 }
   ],
@@ -79,6 +91,7 @@ src/
   "predefinedAnswer": "Snabb betjäning",
   "customerId": "uuid",
   "touchpointId": "uuid",
+  "followUpEmail": "kund@example.com",
   "timestamp": 1234567890000
 }]
 ```
@@ -101,8 +114,10 @@ Kedja (t.ex. ICA Gruppen)
         └── Mätpunkt (t.ex. Telefon, typ: Övriga, läge: QR)
 ```
 
-**Avdelning** = ren namngivna container med unikt ID. Samlar inte in data.  
+**Avdelning** = ren namngiven container med unikt ID. Samlar inte in data.  
 **Mätpunkt** = det som faktiskt samlar in data. Har typ + läge + konfiguration.
+
+Avdelningens unika ID auto-genereras som `AVD-001`, `AVD-002` osv om inget anges manuellt. Dubbelklicka på namn eller ID i listan för att redigera.
 
 ---
 
@@ -136,28 +151,85 @@ App.js läser `?tp=`-parametern automatiskt och aktiverar rätt mätpunkt.
 
 ---
 
-## Inställningar – Vänstermeny
-1. **Kedjor** – Lägg till/ta bort kedjor, drag & drop, logotyp per kedja, nollställ data
-2. **Avdelningar** – Expanderbar lista, mätpunkter per avdelning, migreringsknapp, drag & drop
-3. **Konfiguration** – Per typ (Fysisk/Online/Övriga), bulk-tillämpa på alla mätpunkter
-4. **Säkerhetskopiering** – JSON export/import med val av kedjor
+## Inställningar – Vänstermeny (4 sektioner)
 
-### Konfiguration per mätpunkt
-- Färgläge på NPS-skala (färg/neutral) – endast Fysisk
-- Nedräkning efter svar (3–20 sek) – alla typer i Enkät-läge
-- Fritextfält på/av
-- Fördefinierade svarsalternativ (max 6, drag & drop)
-- Ny mätpunkt ärver kedjans typkonfiguration automatiskt
-- Individuell override möjlig via popup på varje mätpunkt
+### 1. Kedjor
+- Lägg till/ta bort/sortera kedjor (drag & drop)
+- Logotyp per kedja (visas i navigeringen)
+- Nollställ all data för kedjan (med bekräftelsedialog)
+
+### 2. Avdelningar
+- Expanderbar lista med accordion
+- Dubbelklick för att redigera namn och unikt ID
+- Lägg till mätpunkter direkt under varje avdelning
+- Välj typ (Fysisk/Online/Övriga) och läge per mätpunkt
+- Klicka på mätpunkt för popup med fullständig konfiguration (typ, läge, QR/länk/inbäddad kod, konfiguration, nollställning)
+- **Migreringsknapp:** Kopierar alla mätpunkter från en avdelning till alla övriga (hoppar över dubbletter)
+- Sätt aktiv mätpunkt för enkätsidan
+
+### 3. Konfiguration
+- Per typ (Fysisk/Online/Övriga) – standardinställningar som nya mätpunkter ärver
+- Konfigurerbara inställningar:
+  - **NPS-skalans färger** (färg/neutral) – endast Fysisk
+  - **Nedräkning efter svar** (3–20 sek) – alla typer i Enkät-läge
+  - **Fritextfält** på/av
+  - **Fördefinierade svarsalternativ** (max 6, drag & drop, dubbelklick för redigering)
+  - **Uppföljning** på/av – vid betyg 0–2 visas en extra fråga med e-postfält
+- Knapp för att tillämpa standardkonfiguration på alla befintliga mätpunkter av samma typ
+- Individuella inställningar kan sättas per mätpunkt i popup:en under Avdelningar
+
+### 4. Säkerhetskopiering
+- JSON export med val av kedjor
+- JSON import – slår ihop med befintlig data, hoppar över dubbletter
 
 ---
 
-## Rapport – Filter
+## Konfigurationsarv
+```
+Kedjans typkonfiguration (t.ex. physicalConfig)
+  ↓ bas
+Mätpunktens configOverride (om satt)
+  ↓ override
+Effektiv konfiguration (används av enkäten)
+```
+`getEffectiveConfig(chain, touchpointId)` i `settings.js` hanterar detta.
+
+---
+
+## Uppföljningsfunktion
+- Aktiveras per typ under Konfiguration → toggle "Uppföljning"
+- Triggas när kunden ger betyg **0, 1 eller 2**
+- Visar orange ruta: *"Väldigt tråkigt att höra – vill du att vi kontaktar dig och följer upp ärendet?"*
+- E-postfält (valfritt) – sparas som `followUpEmail` på svaret
+- Visas i kommentarslistan i rapporten med klickbar mailto-länk
+- Exporteras som kolumn "Uppföljning" i CSV/Excel
+
+---
+
+## Rapport – Vyer
+
+### Översikt
+- **Hastighetsmätare** med nål som visar NPS-värdet (-100 till +100), färgad grön/orange/röd
+- **Fördelningsbar** totalt (Kritiker/Passiva/Ambassadörer) med antal och procent
+- **Fördelning per typ** (Fysisk/Online/Övriga) med NPS-siffra och fördelningsbar per rad
+- **Svarsalternativ** – staplar färgade gröna (positiva svar) eller röda (negativa svar) + procent
+- **Fritext** – separat grå rad med andel som lämnat kommentar
+- **NPS per avdelning** – horisontella staplar färgade efter NPS-värde
+- **Kommentarslista** – visar kommentarer, fördefinierade svar och uppföljningsemail
+
+### Veckoanalys (enbart fysiska mätpunkter)
+- **Heatmap-tabell** – Måndag–Söndag × Morgon(–11)/Lunch(11–13)/Eftermiddag(13–17)/Kväll(17–)
+- Varje cell visar NPS-siffra + antal svar, färgad grön/gul/röd
+- Tomma celler visas som "–"
+
+### Filter (gemensamt för båda vyer)
 - **Typ:** Hela kedjan / Alla fysiska / Alla online / Alla övriga
-- **Specifik:** Dropdown med avdelning (alla dess mätpunkter) eller enskild mätpunkt
+- **Specifik:** Dropdown med avdelning eller enskild mätpunkt
 - **Tid:** 7 / 30 / 90 dagar / Alla / Eget datumintervall
-- **Export:** CSV (semikolon, BOM för Excel) och XLS med kolumnerna:
-  Datum, Tid, Kedja, Avdelning, Avdelnings-ID, Mätpunkt, Typ, Läge, Poäng, Kategori, Svarsalternativ, Kommentar
+
+### Export
+CSV och Excel med kolumnerna:
+Datum, Tid, Kedja, Avdelning, Avdelnings-ID, Mätpunkt, Typ, Läge, Poäng, Kategori, Svarsalternativ, Kommentar, **Uppföljning**
 
 ---
 
@@ -169,8 +241,10 @@ App.js läser `?tp=`-parametern automatiskt och aktiverar rätt mätpunkt.
 ---
 
 ## Migrera mätpunkter
-Expandera en avdelning med mätpunkter → knapp **"⇄ Migrera till alla övriga avdelningar"**  
-Kopierar namn + typ + läge till alla övriga avdelningar. Hoppar över om namn redan finns.
+Expandera en avdelning med mätpunkter → knapp **"⇄ Migrera till alla X övriga avdelningar"**
+- Kopierar namn + typ + läge till alla övriga avdelningar
+- Hoppar automatiskt över avdelningar som redan har en mätpunkt med samma namn
+- Grön banner visar resultat efter migrering
 
 ---
 
@@ -198,3 +272,5 @@ Vercel känner av push till `master` och deployas automatiskt (~1 min).
 - Periodnollställning (från/till datum) – datastrukturen är förberedd
 - Backend/databas för delad data mellan enheter
 - Autentisering
+- Wordcloud eller textanalys av fritext-kommentarer
+- E-postavisering vid uppföljningsbegäran

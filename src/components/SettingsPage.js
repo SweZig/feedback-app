@@ -1,33 +1,25 @@
 import { useState } from 'react';
 import {
-  getCustomers,
-  getActiveCustomerId,
-  setActiveCustomerId,
-  addCustomer,
-  updateCustomer,
-  deleteCustomer,
-  reorderCustomers,
-  DEMO_CUSTOMER_ID,
+  getChains, getActiveChainId, setActiveChainId,
+  addChain, updateChain, deleteChain, reorderChains,
+  addDepartment, updateDepartment, deleteDepartment, reorderDepartments,
+  applyConfigToType, migrateTouchpointsFromDept,
+  addTouchpoint, updateTouchpoint, deleteTouchpoint, setActiveTouchpoint,
+  getTouchpointUrl, getDefaultConfig, getEffectiveConfig,
+  DEMO_CHAIN_ID, TYPE_LABELS, MODE_LABELS,
 } from '../utils/settings';
+import { resetChainResponses, resetTouchpointResponses } from '../utils/storage';
 import { parseBackupFile, importSelectedBackup } from '../utils/backup';
 import './SettingsPage.css';
 
-// Export only selected customers to JSON
-function exportSelectedBackup(selectedIds, customers) {
-  const allResponsesRaw = localStorage.getItem('npsResponses');
-  const allResponses = allResponsesRaw ? JSON.parse(allResponsesRaw) : [];
-  const selectedCustomers = customers.filter((c) => selectedIds.includes(c.id));
-  const selectedResponses = allResponses.filter((r) => selectedIds.includes(r.customerId));
-  const activeId = localStorage.getItem('npsActiveCustomerId');
-
+function exportSelectedBackup(selectedIds, chains) {
+  const allResponses = JSON.parse(localStorage.getItem('npsResponses') || '[]');
   const data = {
-    npsCustomers: selectedCustomers,
-    npsResponses: selectedResponses,
-    npsActiveCustomerId: activeId,
+    npsCustomers: chains.filter((c) => selectedIds.includes(c.id)),
+    npsResponses: allResponses.filter((r) => selectedIds.includes(r.customerId)),
+    npsActiveCustomerId: localStorage.getItem('npsActiveCustomerId'),
   };
-
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -36,564 +28,730 @@ function exportSelectedBackup(selectedIds, customers) {
   URL.revokeObjectURL(url);
 }
 
-function SettingsPage({ onSettingsChange }) {
-  const [customers, setCustomers] = useState(getCustomers);
-  const [activeId, setActiveId] = useState(getActiveCustomerId);
-  const [newName, setNewName] = useState('');
+function generateDeptCode(departments) {
+  const existing = new Set((departments || []).map((d) => d.uniqueCode).filter(Boolean));
+  let i = 1;
+  while (existing.has(`AVD-${String(i).padStart(3, '0')}`)) i++;
+  return `AVD-${String(i).padStart(3, '0')}`;
+}
+
+const TYPE_BADGE = {
+  physical: 'dept-badge--physical',
+  online: 'dept-badge--online',
+  other: 'dept-badge--other',
+};
+
+const MENU_ITEMS = [
+  { key: 'chains', label: 'Kedjor' },
+  { key: 'departments', label: 'Avdelningar' },
+  { key: 'config', label: 'Konfiguration' },
+  { key: 'backup', label: 'Säkerhetskopiering' },
+];
+
+function ConfirmDialog({ message, detail, onConfirm, onCancel }) {
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
+        <p className="confirm-msg">{message}</p>
+        {detail && <p style={{ fontSize: '0.85rem', color: 'var(--color-text-light)', margin: '-0.75rem 0 1.25rem' }}>{detail}</p>}
+        <div className="confirm-btns">
+          <button className="settings-btn settings-btn--primary" onClick={onConfirm}>Ja, kör</button>
+          <button className="settings-btn settings-btn--ghost" onClick={onCancel}>Avbryt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
+        <p className="confirm-msg">{message}</p>
+        <div className="confirm-btns">
+          <button className="settings-btn settings-btn--danger" onClick={onConfirm}>Ja, ta bort</button>
+          <button className="settings-btn settings-btn--ghost" onClick={onCancel}>Avbryt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResetDialog({ label, onConfirm, onCancel }) {
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-box" onClick={(e) => e.stopPropagation()}>
+        <p className="confirm-msg">Nollställ all data för <strong>{label}</strong>? Detta kan inte ångras.</p>
+        <div className="confirm-btns">
+          <button className="settings-btn settings-btn--danger" onClick={onConfirm}>Ja, nollställ</button>
+          <button className="settings-btn settings-btn--ghost" onClick={onCancel}>Avbryt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// showCountdown: true when mode === 'app'
+function ConfigForm({ config, onChange, type, showCountdown = false }) {
+  return (
+    <div className="config-form">
+      {type === 'physical' && (
+        <div className="setting-row">
+          <div className="setting-info"><h3>NPS-skalans färger</h3><p>Färgade eller neutrala knappar.</p></div>
+          <div className="setting-toggle-group">
+            <button className={`setting-toggle ${config.npsColorMode === 'colored' ? 'setting-toggle--active' : ''}`}
+              onClick={() => onChange({ ...config, npsColorMode: 'colored' })}>Färg</button>
+            <button className={`setting-toggle ${config.npsColorMode === 'neutral' ? 'setting-toggle--active' : ''}`}
+              onClick={() => onChange({ ...config, npsColorMode: 'neutral' })}>Neutral</button>
+          </div>
+        </div>
+      )}
+      {(type === 'physical' || showCountdown) && (
+        <div className="setting-row">
+          <div className="setting-info">
+            <h3>Nedräkning efter svar</h3>
+            <p>Sekunder innan enkäten återställs ({config.countdownSeconds || 6}s).</p>
+          </div>
+          <div className="setting-range">
+            <span>3</span>
+            <input type="range" min={3} max={20} value={config.countdownSeconds || 6}
+              onChange={(e) => onChange({ ...config, countdownSeconds: Number(e.target.value) })} />
+            <span>20</span>
+          </div>
+        </div>
+      )}
+      <div className="setting-row">
+        <div className="setting-info"><h3>Fritextfält</h3><p>Visa kommentarsfältet i enkäten.</p></div>
+        <button className={`setting-switch ${config.freeTextEnabled ? 'setting-switch--on' : ''}`}
+          onClick={() => onChange({ ...config, freeTextEnabled: !config.freeTextEnabled })}>
+          <span className="setting-switch-knob" /></button>
+      </div>
+      <div className="setting-row">
+        <div className="setting-info"><h3>Färdiga svarsalternativ</h3><p>Visa fördefinierade svar (max 6 st).</p></div>
+        <button className={`setting-switch ${config.predefinedAnswersEnabled ? 'setting-switch--on' : ''}`}
+          onClick={() => onChange({ ...config, predefinedAnswersEnabled: !config.predefinedAnswersEnabled })}>
+          <span className="setting-switch-knob" /></button>
+      </div>
+      {config.predefinedAnswersEnabled && (
+        <PredefinedAnswers answers={config.predefinedAnswers || []}
+          onChange={(answers) => onChange({ ...config, predefinedAnswers: answers })} />
+      )}
+      <div className="setting-row">
+        <div className="setting-info">
+          <h3>Uppföljning</h3>
+          <p>Vid betyg 0–2 frågar enkäten om kunden vill bli kontaktad via e-post.</p>
+        </div>
+        <button className={`setting-switch ${config.followUpEnabled ? 'setting-switch--on' : ''}`}
+          onClick={() => onChange({ ...config, followUpEnabled: !config.followUpEnabled })}>
+          <span className="setting-switch-knob" /></button>
+      </div>
+    </div>
+  );
+}
+
+function PredefinedAnswers({ answers, onChange }) {
   const [newAnswer, setNewAnswer] = useState('');
+  const [editIdx, setEditIdx] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  return (
+    <div className="setting-predefined">
+      <ul className="predefined-list">
+        {answers.map((answer, i) => (
+          <li key={i}
+            className={'predefined-item' + (dragIdx === i ? ' predefined-item--dragging' : '') + (dragOverIdx === i ? ' predefined-item--drag-over' : '')}
+            draggable
+            onDragStart={() => setDragIdx(i)}
+            onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+            onDrop={() => {
+              if (dragIdx === null || dragIdx === i) { setDragIdx(null); setDragOverIdx(null); return; }
+              const u = [...answers]; const [m] = u.splice(dragIdx, 1); u.splice(i, 0, m);
+              onChange(u); setDragIdx(null); setDragOverIdx(null);
+            }}
+            onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+          >
+            <span className="predefined-drag-handle">&#x2630;</span>
+            {editIdx === i ? (
+              <form className="predefined-edit-form" onSubmit={(e) => {
+                e.preventDefault(); if (!editText.trim()) return;
+                const u = [...answers]; u[i] = editText.trim(); onChange(u); setEditIdx(null);
+              }}>
+                <input className="settings-input" value={editText}
+                  onChange={(e) => setEditText(e.target.value)} autoFocus
+                  onBlur={() => setEditIdx(null)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setEditIdx(null); }} />
+              </form>
+            ) : (
+              <span className="predefined-text"
+                onDoubleClick={() => { setEditIdx(i); setEditText(answer); }}
+                title="Dubbelklicka för att redigera">{answer}</span>
+            )}
+            <button className="predefined-remove"
+              onClick={() => onChange(answers.filter((_, idx) => idx !== i))}>&times;</button>
+          </li>
+        ))}
+      </ul>
+      {answers.length < 6 && (
+        <form className="predefined-add-form" onSubmit={(e) => {
+          e.preventDefault(); if (!newAnswer.trim()) return;
+          onChange([...answers, newAnswer.trim()]); setNewAnswer('');
+        }}>
+          <input type="text" placeholder="Nytt svarsalternativ..." value={newAnswer}
+            onChange={(e) => setNewAnswer(e.target.value)} className="settings-input" />
+          <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function TouchpointLinks({ tp }) {
+  const [copiedKey, setCopiedKey] = useState(null);
+  const url = getTouchpointUrl(tp.id);
+  const embedCode = `<iframe src="${url}" width="100%" height="650" frameborder="0" style="border:none;"></iframe>`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
+  function copy(text, key) {
+    navigator.clipboard.writeText(text).then(() => { setCopiedKey(key); setTimeout(() => setCopiedKey(null), 2000); });
+  }
+  return (
+    <div className="tp-links-panel">
+      <div className="tp-link-block">
+        <p className="tp-link-label">Webblänk</p>
+        <div className="tp-link-row">
+          <code className="tp-link-code">{url}</code>
+          <button className="settings-btn settings-btn--sm" onClick={() => copy(url, 'link')}>{copiedKey === 'link' ? '✓ Kopierad!' : 'Kopiera'}</button>
+        </div>
+      </div>
+      <div className="tp-link-block">
+        <p className="tp-link-label">QR-kod</p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <img src={qrUrl} alt="QR-kod" className="tp-qr-img" />
+          <button className="settings-btn settings-btn--sm" onClick={() => copy(url, 'qr')}>{copiedKey === 'qr' ? '✓ Kopierad!' : 'Kopiera länk'}</button>
+        </div>
+      </div>
+      <div className="tp-link-block">
+        <p className="tp-link-label">Inbäddningskod (iframe)</p>
+        <div className="tp-link-row">
+          <code className="tp-link-code tp-link-code--embed">{embedCode}</code>
+          <button className="settings-btn settings-btn--sm" onClick={() => copy(embedCode, 'embed')}>{copiedKey === 'embed' ? '✓ Kopierad!' : 'Kopiera'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
+  const [mode, setMode] = useState(tp.mode || 'app');
+  const [tpType, setTpType] = useState(tp.type || 'physical');
+  const [localConfig, setLocalConfig] = useState(() => getEffectiveConfig(chain, tp.id));
+  function handleModeChange(newMode) { setMode(newMode); onUpdate(tp.id, { mode: newMode }); }
+  function handleTypeChange(newType) { setTpType(newType); onUpdate(tp.id, { type: newType }); }
+  function handleConfigChange(newConfig) { setLocalConfig(newConfig); onUpdate(tp.id, { configOverride: newConfig }); }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+            <span className={`dept-badge ${TYPE_BADGE[tpType]}`}>{TYPE_LABELS[tpType]}</span>
+            {dept && <span className="modal-dept-name">{dept.name}</span>}
+            <span className="modal-sep">›</span>
+            <strong className="modal-tp-name">{tp.name}</strong>
+          </div>
+          <button className="modal-close" onClick={onClose}>&times;</button>
+        </div>
+        <div className="modal-body">
+          <div className="modal-section">
+            <h3>Typ av mätpunkt</h3>
+            <div className="mode-selector">
+              {Object.entries(TYPE_LABELS).map(([key, label]) => (
+                <button key={key} className={`mode-btn ${tpType === key ? 'mode-btn--active' : ''}`}
+                  onClick={() => handleTypeChange(key)}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="modal-section">
+            <h3>Insamlingsläge</h3>
+            <div className="mode-selector">
+              {Object.entries(MODE_LABELS).map(([key, label]) => (
+                <button key={key} className={`mode-btn ${mode === key ? 'mode-btn--active' : ''}`}
+                  onClick={() => handleModeChange(key)}>{label}</button>
+              ))}
+            </div>
+          </div>
+          {mode !== 'app' ? (
+            <div className="modal-section"><h3>Länk &amp; kod</h3><TouchpointLinks tp={{ ...tp, mode }} /></div>
+          ) : (
+            <div className="modal-section"><p className="modal-info-text">Enkät-läge – används direkt i appen på en surfplatta eller skärm.</p></div>
+          )}
+          <div className="modal-section">
+            <h3>Konfiguration</h3>
+            <p className="settings-card-desc" style={{ marginBottom: '0.5rem' }}>
+              Individuella inställningar. Lämna oförändrat för att ärva kedjans standard.
+            </p>
+            <ConfigForm config={localConfig} onChange={handleConfigChange} type={tpType} showCountdown={mode === 'app'} />
+          </div>
+          <div className="modal-section modal-footer-actions">
+            <button className="settings-btn settings-btn--danger-outline"
+              onClick={() => { onReset(tp.id, tp.name); onClose(); }}>
+              ↺ Nollställ data för denna mätpunkt
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SettingsPage({ onSettingsChange }) {
+  const [section, setSection] = useState('chains');
+  const [chains, setChains] = useState(getChains);
+  const [activeId, setActiveId] = useState(getActiveChainId);
+
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(null);
+  const [confirmMigrate, setConfirmMigrate] = useState(null);
+  const [migrateResult, setMigrateResult] = useState(null);
+
+  const [newChainName, setNewChainName] = useState('');
   const [dragId, setDragId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
-  const [editingAnswerIdx, setEditingAnswerIdx] = useState(null);
-  const [editingAnswerText, setEditingAnswerText] = useState('');
-  const [dragAnswerIdx, setDragAnswerIdx] = useState(null);
-  const [dragOverAnswerIdx, setDragOverAnswerIdx] = useState(null);
 
-  // Export selection
-  const allIds = customers.map((c) => c.id);
-  const [selectedExportIds, setSelectedExportIds] = useState(allIds);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptCode, setNewDeptCode] = useState('');
+  const [deptDragId, setDeptDragId] = useState(null);
+  const [deptDragOverId, setDeptDragOverId] = useState(null);
+  const [editingDeptId, setEditingDeptId] = useState(null);
+  const [editingDeptText, setEditingDeptText] = useState('');
+  const [editingCodeId, setEditingCodeId] = useState(null);
+  const [editingCodeText, setEditingCodeText] = useState('');
+  const [expandedDeptId, setExpandedDeptId] = useState(null);
+  const [newTpByDept, setNewTpByDept] = useState({});
+  const [selectedTp, setSelectedTp] = useState(null);
 
-  // Import state
+  const [configTab, setConfigTab] = useState('physical');
+
+  const [selectedExportIds, setSelectedExportIds] = useState(() => getChains().map((c) => c.id));
   const [parsedBackup, setParsedBackup] = useState(null);
   const [selectedImportIds, setSelectedImportIds] = useState([]);
   const [importStatus, setImportStatus] = useState(null);
 
-  const active = customers.find((c) => c.id === activeId) || null;
-
   function refresh() {
-    const updated = getCustomers();
-    setCustomers(updated);
-    setActiveId(getActiveCustomerId());
+    const updated = getChains();
+    setChains(updated);
+    setActiveId(getActiveChainId());
     setSelectedExportIds(updated.map((c) => c.id));
     onSettingsChange();
   }
 
-  function handleAddCustomer(e) {
+  const active = chains.find((c) => c.id === activeId) || null;
+  const departments = (active?.departments || []).slice().sort((a, b) => a.order - b.order);
+  const touchpoints = active?.touchpoints || [];
+  const allChainIds = chains.map((c) => c.id);
+
+  function handleAddChain(e) {
     e.preventDefault();
-    if (!newName.trim()) return;
-    addCustomer(newName.trim());
-    setNewName('');
-    refresh();
+    if (!newChainName.trim()) return;
+    addChain(newChainName.trim()); setNewChainName(''); refresh();
   }
 
-  function handleSelect(id) {
-    setActiveCustomerId(id);
-    refresh();
+  function handleChainDrop(targetId) {
+    if (!dragId || targetId === DEMO_CHAIN_ID || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+    const ids = chains.map((c) => c.id);
+    const fi = ids.indexOf(dragId); const ti = ids.indexOf(targetId);
+    ids.splice(fi, 1); ids.splice(ti, 0, dragId);
+    reorderChains(ids); setDragId(null); setDragOverId(null); refresh();
   }
 
-  function handleDelete(id) {
-    deleteCustomer(id);
-    refresh();
-  }
-
-  function handleDragStart(id) {
-    if (id === DEMO_CUSTOMER_ID) return;
-    setDragId(id);
-  }
-
-  function handleDragOver(e, id) {
+  function handleAddDept(e) {
     e.preventDefault();
-    if (id === DEMO_CUSTOMER_ID || id === dragId) return;
-    setDragOverId(id);
-  }
-
-  function handleDrop(targetId) {
-    if (!dragId || targetId === DEMO_CUSTOMER_ID || dragId === targetId) {
-      setDragId(null);
-      setDragOverId(null);
-      return;
-    }
-    const ids = customers.map((c) => c.id);
-    const fromIdx = ids.indexOf(dragId);
-    const toIdx = ids.indexOf(targetId);
-    ids.splice(fromIdx, 1);
-    ids.splice(toIdx, 0, dragId);
-    reorderCustomers(ids);
-    setDragId(null);
-    setDragOverId(null);
+    if (!newDeptName.trim() || !active) return;
+    const code = newDeptCode.trim() || generateDeptCode(active.departments);
+    const dept = addDepartment(active.id, newDeptName.trim(), code);
+    setNewDeptName(''); setNewDeptCode('');
+    setExpandedDeptId(dept?.id || null);
     refresh();
   }
 
-  function handleDragEnd() {
-    setDragId(null);
-    setDragOverId(null);
+  function handleDeptDrop(targetId) {
+    if (!deptDragId || deptDragId === targetId || !active) { setDeptDragId(null); setDeptDragOverId(null); return; }
+    const ids = departments.map((d) => d.id);
+    const fi = ids.indexOf(deptDragId); const ti = ids.indexOf(targetId);
+    ids.splice(fi, 1); ids.splice(ti, 0, deptDragId);
+    reorderDepartments(active.id, ids); setDeptDragId(null); setDeptDragOverId(null); refresh();
   }
 
-  function handleToggleColor(mode) {
+  function handleMigrateClick(dept, deptTps) {
+    setConfirmMigrate({ deptId: dept.id, deptName: dept.name, tpNames: deptTps.map((t) => t.name), otherCount: departments.length - 1 });
+  }
+
+  function executeMigrate() {
+    if (!confirmMigrate || !active) return;
+    const result = migrateTouchpointsFromDept(active.id, confirmMigrate.deptId);
+    setConfirmMigrate(null);
+    setMigrateResult(result);
+    setTimeout(() => setMigrateResult(null), 4000);
+    refresh();
+  }
+
+  function handleAddTp(e, deptId) {
+    e.preventDefault();
+    const state = newTpByDept[deptId] || {};
+    const name = (state.name || '').trim();
+    const type = state.type || 'physical';
+    if (!name || !active) return;
+    addTouchpoint(active.id, name, deptId, type);
+    setNewTpByDept((prev) => ({ ...prev, [deptId]: { name: '', type: prev[deptId]?.type || 'physical' } }));
+    refresh();
+  }
+
+  function handleSetActiveTp(tpId) {
     if (!active) return;
-    updateCustomer(active.id, { npsColorMode: mode });
+    setActiveTouchpoint(active.id, active.activeTouchpointId === tpId ? null : tpId);
     refresh();
   }
 
-  function handleToggleFreeText() {
+  function handleTpUpdate(tpId, updates) {
+    if (active) { updateTouchpoint(active.id, tpId, updates); refresh(); }
+  }
+
+  function executeDelete() {
+    if (!confirmDelete) return;
+    const { type, id } = confirmDelete;
+    if (type === 'chain') deleteChain(id);
+    else if (type === 'dept' && active) deleteDepartment(active.id, id);
+    else if (type === 'tp' && active) deleteTouchpoint(active.id, id);
+    setConfirmDelete(null); refresh();
+  }
+
+  function executeReset() {
+    if (!confirmReset) return;
+    if (confirmReset.type === 'chain') resetChainResponses(confirmReset.id);
+    else resetTouchpointResponses(confirmReset.id);
+    setConfirmReset(null); refresh();
+  }
+
+  function handleConfigChange(type, newConfig) {
     if (!active) return;
-    updateCustomer(active.id, { freeTextEnabled: !active.freeTextEnabled });
-    refresh();
+    const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
+    updateChain(active.id, { [key]: newConfig });
+    setChains(getChains()); onSettingsChange();
   }
 
-  function handleLogoUpload(e) {
-    const file = e.target.files[0];
-    if (!file || !active) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      updateCustomer(active.id, { customLogo: reader.result });
-      refresh();
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function handleRemoveLogo() {
+  function handleApplyToAll(type) {
     if (!active) return;
-    updateCustomer(active.id, { customLogo: null });
-    refresh();
+    applyConfigToType(active.id, type);
+    setChains(getChains()); onSettingsChange();
   }
 
-  // Export checkboxes
-  function toggleExportCustomer(id) {
-    setSelectedExportIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
-  function toggleExportAll() {
-    setSelectedExportIds((prev) =>
-      prev.length === allIds.length ? [] : allIds
-    );
-  }
-
-  // Import
   async function handleFileSelected(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.target.files[0]; if (!file) return;
     try {
       const parsed = await parseBackupFile(file);
-      setParsedBackup(parsed);
-      setSelectedImportIds(parsed.customers.map((c) => c.id));
-      setImportStatus(null);
-    } catch {
-      setImportStatus('error');
-      setParsedBackup(null);
-    }
+      setParsedBackup(parsed); setSelectedImportIds(parsed.customers.map((c) => c.id)); setImportStatus(null);
+    } catch { setImportStatus('error'); setParsedBackup(null); }
     e.target.value = '';
-  }
-
-  function toggleImportCustomer(id) {
-    setSelectedImportIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
-  function toggleImportAll() {
-    if (!parsedBackup) return;
-    const allBackupIds = parsedBackup.customers.map((c) => c.id);
-    setSelectedImportIds((prev) =>
-      prev.length === allBackupIds.length ? [] : allBackupIds
-    );
   }
 
   function handleConfirmImport() {
     if (!parsedBackup || selectedImportIds.length === 0) return;
     const ok = importSelectedBackup(parsedBackup, selectedImportIds);
     setImportStatus(ok ? 'ok' : 'error');
-    setParsedBackup(null);
-    setSelectedImportIds([]);
+    setParsedBackup(null); setSelectedImportIds([]);
     if (ok) refresh();
     setTimeout(() => setImportStatus(null), 3000);
   }
 
   return (
-    <div className="settings">
-      <div className="settings-card">
-        <h2>Kunder</h2>
-        <form className="settings-add-form" onSubmit={handleAddCustomer}>
-          <input
-            type="text"
-            placeholder="Nytt kundnamn..."
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            className="settings-input"
-          />
-          <button type="submit" className="settings-btn settings-btn--primary">
-            Lägg till
-          </button>
-        </form>
-
-        {customers.length === 0 ? (
-          <p className="settings-empty">Inga kunder ännu. Lägg till en ovan.</p>
-        ) : (
-          <ul className="customer-list">
-            {customers.map((c) => (
-              <li
-                key={c.id}
-                className={
-                  `customer-item` +
-                  (c.id === activeId ? ' customer-item--active' : '') +
-                  (dragId === c.id ? ' customer-item--dragging' : '') +
-                  (dragOverId === c.id ? ' customer-item--drag-over' : '')
-                }
-                draggable={c.id !== DEMO_CUSTOMER_ID}
-                onDragStart={() => handleDragStart(c.id)}
-                onDragOver={(e) => handleDragOver(e, c.id)}
-                onDrop={() => handleDrop(c.id)}
-                onDragEnd={handleDragEnd}
-              >
-                {c.id !== DEMO_CUSTOMER_ID && (
-                  <span className="customer-drag-handle">&#x2630;</span>
-                )}
-                <button
-                  className="customer-select"
-                  onClick={() => handleSelect(c.id)}
-                >
-                  <span className="customer-name">{c.name}</span>
-                  {c.id === activeId && <span className="customer-badge">Aktiv</span>}
-                </button>
-                {c.id !== DEMO_CUSTOMER_ID && (
-                  <button
-                    className="customer-delete"
-                    onClick={() => handleDelete(c.id)}
-                    title="Ta bort kund"
-                  >
-                    &times;
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {active && (
-        <div className="settings-card">
-          <h2>Inställningar för {active.name}</h2>
-
-          <div className="setting-row">
-            <div className="setting-info">
-              <h3>NPS-skalans färger</h3>
-              <p>Välj om poängknapparna ska ha NPS-färger eller vara neutrala.</p>
-            </div>
-            <div className="setting-toggle-group">
-              <button
-                className={`setting-toggle ${active.npsColorMode === 'colored' ? 'setting-toggle--active' : ''}`}
-                onClick={() => handleToggleColor('colored')}
-              >
-                Färg
-              </button>
-              <button
-                className={`setting-toggle ${active.npsColorMode === 'neutral' ? 'setting-toggle--active' : ''}`}
-                onClick={() => handleToggleColor('neutral')}
-              >
-                Neutral
-              </button>
-            </div>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-info">
-              <h3>Färdiga svarsalternativ</h3>
-              <p>Visa valbara knappar med fördefinierade svar (max 6 st).</p>
-            </div>
-            <button
-              className={`setting-switch ${active.predefinedAnswersEnabled ? 'setting-switch--on' : ''}`}
-              onClick={() => {
-                updateCustomer(active.id, { predefinedAnswersEnabled: !active.predefinedAnswersEnabled });
-                refresh();
-              }}
-            >
-              <span className="setting-switch-knob" />
-            </button>
-          </div>
-          {active.predefinedAnswersEnabled && (
-            <div className="setting-row setting-row--col">
-              <div className="setting-info">
-                <h3>Hantera svarsalternativ</h3>
-              </div>
-              <div className="setting-predefined">
-                <ul className="predefined-list">
-                  {(active.predefinedAnswers || []).map((answer, i) => (
-                    <li
-                      key={i}
-                      className={
-                        'predefined-item' +
-                        (dragAnswerIdx === i ? ' predefined-item--dragging' : '') +
-                        (dragOverAnswerIdx === i ? ' predefined-item--drag-over' : '')
-                      }
-                      draggable
-                      onDragStart={() => setDragAnswerIdx(i)}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverAnswerIdx(i); }}
-                      onDrop={() => {
-                        if (dragAnswerIdx === null || dragAnswerIdx === i) {
-                          setDragAnswerIdx(null);
-                          setDragOverAnswerIdx(null);
-                          return;
-                        }
-                        const updated = [...active.predefinedAnswers];
-                        const [moved] = updated.splice(dragAnswerIdx, 1);
-                        updated.splice(i, 0, moved);
-                        updateCustomer(active.id, { predefinedAnswers: updated });
-                        setDragAnswerIdx(null);
-                        setDragOverAnswerIdx(null);
-                        refresh();
-                      }}
-                      onDragEnd={() => { setDragAnswerIdx(null); setDragOverAnswerIdx(null); }}
-                    >
-                      <span className="predefined-drag-handle">&#x2630;</span>
-                      {editingAnswerIdx === i ? (
-                        <form
-                          className="predefined-edit-form"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!editingAnswerText.trim()) return;
-                            const updated = [...active.predefinedAnswers];
-                            updated[i] = editingAnswerText.trim();
-                            updateCustomer(active.id, { predefinedAnswers: updated });
-                            setEditingAnswerIdx(null);
-                            refresh();
-                          }}
-                        >
-                          <input
-                            className="settings-input"
-                            value={editingAnswerText}
-                            onChange={(e) => setEditingAnswerText(e.target.value)}
-                            autoFocus
-                            onBlur={() => setEditingAnswerIdx(null)}
-                            onKeyDown={(e) => { if (e.key === 'Escape') setEditingAnswerIdx(null); }}
-                          />
-                        </form>
-                      ) : (
-                        <span
-                          className="predefined-text"
-                          onDoubleClick={() => {
-                            setEditingAnswerIdx(i);
-                            setEditingAnswerText(answer);
-                          }}
-                          title="Dubbelklicka för att redigera"
-                        >
-                          {answer}
-                        </span>
-                      )}
-                      <button
-                        className="predefined-remove"
-                        onClick={() => {
-                          const updated = active.predefinedAnswers.filter((_, idx) => idx !== i);
-                          updateCustomer(active.id, { predefinedAnswers: updated });
-                          refresh();
-                        }}
-                      >
-                        &times;
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {(active.predefinedAnswers || []).length < 6 && (
-                  <form
-                    className="predefined-add-form"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!newAnswer.trim()) return;
-                      const updated = [...(active.predefinedAnswers || []), newAnswer.trim()];
-                      updateCustomer(active.id, { predefinedAnswers: updated });
-                      setNewAnswer('');
-                      refresh();
-                    }}
-                  >
-                    <input
-                      type="text"
-                      placeholder="Nytt svarsalternativ..."
-                      value={newAnswer}
-                      onChange={(e) => setNewAnswer(e.target.value)}
-                      className="settings-input"
-                    />
-                    <button type="submit" className="settings-btn settings-btn--primary">
-                      Lägg till
-                    </button>
-                  </form>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="setting-row">
-            <div className="setting-info">
-              <h3>Fritextfält</h3>
-              <p>Visa kommentarsfältet i enkäten.</p>
-            </div>
-            <button
-              className={`setting-switch ${active.freeTextEnabled ? 'setting-switch--on' : ''}`}
-              onClick={handleToggleFreeText}
-            >
-              <span className="setting-switch-knob" />
-            </button>
-          </div>
-
-          <div className="setting-row">
-            <div className="setting-info">
-              <h3>Nedräkning efter svar</h3>
-              <p>Antal sekunder innan enkäten återställs ({active.countdownSeconds || 6}s).</p>
-            </div>
-            <div className="setting-range">
-              <span>3</span>
-              <input
-                type="range"
-                min={3}
-                max={20}
-                value={active.countdownSeconds || 6}
-                onChange={(e) => {
-                  updateCustomer(active.id, { countdownSeconds: Number(e.target.value) });
-                  refresh();
-                }}
-              />
-              <span>20</span>
-            </div>
-          </div>
-
-          <div className="setting-row setting-row--col">
-            <div className="setting-info">
-              <h3>Kundlogotyp</h3>
-              <p>Ladda upp kundens logo. Visas i navigeringen istället för standardlogon.</p>
-            </div>
-            {active.customLogo ? (
-              <div className="setting-logo-preview">
-                <img src={active.customLogo} alt="Kundlogo" />
-                <button
-                  className="settings-btn settings-btn--danger"
-                  onClick={handleRemoveLogo}
-                >
-                  Ta bort logo
-                </button>
-              </div>
-            ) : (
-              <label className="settings-upload">
-                <span className="settings-btn settings-btn--primary">Välj fil...</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoUpload}
-                  hidden
-                />
-              </label>
-            )}
-          </div>
-        </div>
+    <div className="settings-layout">
+      {confirmDelete && <DeleteDialog message={`Ta bort "${confirmDelete.label}"? Detta kan inte ångras.`} onConfirm={executeDelete} onCancel={() => setConfirmDelete(null)} />}
+      {confirmReset && <ResetDialog label={confirmReset.label} onConfirm={executeReset} onCancel={() => setConfirmReset(null)} />}
+      {confirmMigrate && (
+        <ConfirmDialog
+          message={`Migrera mätpunkter från "${confirmMigrate.deptName}" till alla ${confirmMigrate.otherCount} övriga avdelningar?`}
+          detail={`Kopierar: ${confirmMigrate.tpNames.join(', ')}. Avdelningar som redan har samma namn hoppas över.`}
+          onConfirm={executeMigrate} onCancel={() => setConfirmMigrate(null)} />
+      )}
+      {selectedTp && (
+        <TouchpointModal tp={selectedTp.tp} dept={selectedTp.dept} chain={active}
+          onClose={() => { setSelectedTp(null); refresh(); }}
+          onUpdate={handleTpUpdate}
+          onReset={(id, name) => setConfirmReset({ type: 'tp', id, label: name })} />
       )}
 
-      {/* Backup card */}
-      <div className="settings-card">
-        <h2>Säkerhetskopiering</h2>
+      <nav className="settings-menu">
+        <p className="settings-menu-label">Meny</p>
+        {MENU_ITEMS.map((item) => (
+          <button key={item.key}
+            className={`settings-menu-item ${section === item.key ? 'settings-menu-item--active' : ''}`}
+            onClick={() => setSection(item.key)}>{item.label}</button>
+        ))}
+      </nav>
 
-        {/* Export */}
-        <div className="setting-row setting-row--col">
-          <div className="setting-info">
-            <h3>Exportera backup</h3>
-            <p>Välj vilka kedjor som ska ingå i backup-filen.</p>
-          </div>
-          <div style={{ width: '100%', marginTop: '0.5rem' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.75rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedExportIds.length === allIds.length}
-                  onChange={toggleExportAll}
-                  style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
-                />
-                <strong>Alla kedjor</strong>
-              </label>
-              {customers.map((c) => (
-                <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', paddingLeft: '1.5rem' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedExportIds.includes(c.id)}
-                    onChange={() => toggleExportCustomer(c.id)}
-                    style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
-                  />
-                  {c.name}
-                </label>
+      <div className="settings-content">
+
+        {section === 'chains' && (
+          <div className="settings-card">
+            <h2>Kedjor</h2>
+            <form className="settings-add-form" onSubmit={handleAddChain}>
+              <input type="text" placeholder="Ny kedja..." value={newChainName}
+                onChange={(e) => setNewChainName(e.target.value)} className="settings-input" />
+              <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
+            </form>
+            <ul className="customer-list">
+              {chains.map((c) => (
+                <li key={c.id}
+                  className={'customer-item' + (c.id === activeId ? ' customer-item--active' : '') + (dragId === c.id ? ' customer-item--dragging' : '') + (dragOverId === c.id ? ' customer-item--drag-over' : '')}
+                  draggable={c.id !== DEMO_CHAIN_ID}
+                  onDragStart={() => c.id !== DEMO_CHAIN_ID && setDragId(c.id)}
+                  onDragOver={(e) => { e.preventDefault(); if (c.id !== DEMO_CHAIN_ID && c.id !== dragId) setDragOverId(c.id); }}
+                  onDrop={() => handleChainDrop(c.id)}
+                  onDragEnd={() => { setDragId(null); setDragOverId(null); }}
+                >
+                  {c.id !== DEMO_CHAIN_ID && <span className="customer-drag-handle">&#x2630;</span>}
+                  <button className="customer-select" onClick={() => { setActiveChainId(c.id); refresh(); }}>
+                    <span className="customer-name">{c.name}</span>
+                    {c.id === activeId && <span className="customer-badge">Aktiv</span>}
+                  </button>
+                  <button className="reset-btn" title="Nollställ data" onClick={() => setConfirmReset({ type: 'chain', id: c.id, label: c.name })}>↺</button>
+                  {c.id !== DEMO_CHAIN_ID && (
+                    <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'chain', id: c.id, label: c.name })}>&times;</button>
+                  )}
+                </li>
               ))}
-            </div>
-            <button
-              className="settings-btn settings-btn--primary"
-              disabled={selectedExportIds.length === 0}
-              onClick={() => exportSelectedBackup(selectedExportIds, customers)}
-            >
-              Exportera
-            </button>
-          </div>
-        </div>
-
-        {/* Import */}
-        <div className="setting-row setting-row--col">
-          <div className="setting-info">
-            <h3>Importera backup</h3>
-            <p>Välj en backup-fil och sedan vilka kedjor som ska importeras. Data slås ihop med befintlig.</p>
-          </div>
-          {!parsedBackup ? (
-            <label className="settings-upload" style={{ marginTop: '0.5rem' }}>
-              <span className="settings-btn settings-btn--primary">Välj fil...</span>
-              <input
-                type="file"
-                accept=".json"
-                hidden
-                onChange={handleFileSelected}
-              />
-            </label>
-          ) : (
-            <div style={{ width: '100%', marginTop: '0.5rem' }}>
-              <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)' }}>
-                Välj kedjor att importera:
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '0.75rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedImportIds.length === parsedBackup.customers.length}
-                    onChange={toggleImportAll}
-                    style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
-                  />
-                  <strong>Alla kedjor</strong>
-                </label>
-                {parsedBackup.customers.map((c) => (
-                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', paddingLeft: '1.5rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedImportIds.includes(c.id)}
-                      onChange={() => toggleImportCustomer(c.id)}
-                      style={{ accentColor: 'var(--color-primary)', width: 16, height: 16 }}
-                    />
-                    {c.name}
+            </ul>
+            {active && (
+              <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
+                <p className="settings-card-desc">Logotyp för {active.name}</p>
+                {active.customLogo ? (
+                  <div className="setting-logo-preview">
+                    <img src={active.customLogo} alt="Logo" />
+                    <button className="settings-btn settings-btn--danger" onClick={() => { updateChain(active.id, { customLogo: null }); refresh(); }}>Ta bort logo</button>
+                  </div>
+                ) : (
+                  <label className="settings-upload">
+                    <span className="settings-btn settings-btn--primary">Välj logotyp...</span>
+                    <input type="file" accept="image/*" hidden onChange={(e) => {
+                      const file = e.target.files[0]; if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => { updateChain(active.id, { customLogo: reader.result }); refresh(); };
+                      reader.readAsDataURL(file);
+                    }} />
                   </label>
-                ))}
+                )}
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  className="settings-btn settings-btn--primary"
-                  onClick={handleConfirmImport}
-                  disabled={selectedImportIds.length === 0}
-                >
-                  Importera
-                </button>
-                <button
-                  className="settings-btn"
-                  style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}
-                  onClick={() => { setParsedBackup(null); setSelectedImportIds([]); }}
-                >
-                  Avbryt
-                </button>
+            )}
+          </div>
+        )}
+
+        {section === 'departments' && (
+          <div className="settings-card">
+            <h2>Avdelningar{active ? ` — ${active.name}` : ''}</h2>
+            {!active ? <p className="settings-empty">Välj en kedja under Kedjor.</p> : (
+              <>
+                <p className="settings-card-desc">Avdelningar är containers för mätpunkter. Unikt ID auto-genereras om inget anges. Dubbelklicka på namn eller ID för att redigera.</p>
+                {migrateResult && (
+                  <div className="migrate-result">
+                    ✓ Migrering klar – {migrateResult.added} mätpunkter skapade{migrateResult.skipped > 0 ? `, ${migrateResult.skipped} hoppades över.` : '.'}
+                  </div>
+                )}
+                <form className="settings-add-form" onSubmit={handleAddDept}>
+                  <input type="text" placeholder="Namn (t.ex. ICA Stockholm City)" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} className="settings-input" />
+                  <input type="text" placeholder="Unikt ID (auto)" value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} className="settings-input settings-input--code" />
+                  <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
+                </form>
+                {departments.length === 0 ? <p className="settings-empty">Inga avdelningar ännu.</p> : (
+                  <div className="dept-accordion">
+                    {departments.map((d) => {
+                      const deptTps = touchpoints.filter((t) => t.departmentId === d.id).sort((a, b) => a.order - b.order);
+                      const isExpanded = expandedDeptId === d.id;
+                      const deptState = newTpByDept[d.id] || { name: '', type: 'physical' };
+                      const otherDeptsCount = departments.length - 1;
+                      return (
+                        <div key={d.id}
+                          className={'dept-accordion-item' + (deptDragId === d.id ? ' dept-item--dragging' : '') + (deptDragOverId === d.id ? ' dept-item--drag-over' : '')}
+                          draggable
+                          onDragStart={() => setDeptDragId(d.id)}
+                          onDragOver={(e) => { e.preventDefault(); if (d.id !== deptDragId) setDeptDragOverId(d.id); }}
+                          onDrop={() => handleDeptDrop(d.id)}
+                          onDragEnd={() => { setDeptDragId(null); setDeptDragOverId(null); }}
+                        >
+                          <div className="dept-accordion-header" onClick={() => setExpandedDeptId(isExpanded ? null : d.id)}>
+                            <span className="customer-drag-handle" onClick={(e) => e.stopPropagation()}>&#x2630;</span>
+                            {editingDeptId === d.id ? (
+                              <form className="predefined-edit-form" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}
+                                onSubmit={(e) => { e.preventDefault(); if (!editingDeptText.trim()) return; updateDepartment(active.id, d.id, { name: editingDeptText.trim() }); setEditingDeptId(null); refresh(); }}>
+                                <input className="settings-input" value={editingDeptText} onChange={(e) => setEditingDeptText(e.target.value)} autoFocus onBlur={() => setEditingDeptId(null)} onKeyDown={(e) => { if (e.key === 'Escape') setEditingDeptId(null); }} />
+                              </form>
+                            ) : (
+                              <span className="dept-accordion-name" onDoubleClick={(e) => { e.stopPropagation(); setEditingDeptId(d.id); setEditingDeptText(d.name); }} title="Dubbelklicka för att redigera namn">{d.name}</span>
+                            )}
+                            {editingCodeId === d.id ? (
+                              <form style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}
+                                onSubmit={(e) => { e.preventDefault(); updateDepartment(active.id, d.id, { uniqueCode: editingCodeText.trim() }); setEditingCodeId(null); refresh(); }}>
+                                <input className="settings-input settings-input--code" value={editingCodeText} onChange={(e) => setEditingCodeText(e.target.value)} autoFocus
+                                  onBlur={() => { updateDepartment(active.id, d.id, { uniqueCode: editingCodeText.trim() }); setEditingCodeId(null); refresh(); }}
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingCodeId(null); }} />
+                              </form>
+                            ) : (
+                              <span className="dept-code dept-code--editable" onDoubleClick={(e) => { e.stopPropagation(); setEditingCodeId(d.id); setEditingCodeText(d.uniqueCode || ''); }} title="Dubbelklicka för att redigera ID">{d.uniqueCode || '–'}</span>
+                            )}
+                            <span className="dept-tp-count">{deptTps.length} mätpunkter</span>
+                            <span className="dept-accordion-chevron">{isExpanded ? '▲' : '▼'}</span>
+                            <button className="customer-delete" onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'dept', id: d.id, label: d.name }); }}>&times;</button>
+                          </div>
+                          {isExpanded && (
+                            <div className="dept-accordion-body">
+                              {deptTps.length === 0 ? (
+                                <p className="settings-empty" style={{ paddingBottom: '0.5rem' }}>Inga mätpunkter ännu. Lägg till nedan.</p>
+                              ) : (
+                                <>
+                                  <ul className="tp-list">
+                                    {deptTps.map((tp) => {
+                                      const isActive = active.activeTouchpointId === tp.id;
+                                      return (
+                                        <li key={tp.id} className={'tp-item tp-item--in-dept' + (isActive ? ' tp-item--active' : '')}>
+                                          <button className="tp-detail-btn" onClick={() => setSelectedTp({ tp, dept: d })}>
+                                            <span className={`dept-badge ${TYPE_BADGE[tp.type] || ''}`}>{TYPE_LABELS[tp.type] || tp.type}</span>
+                                            <span className="tp-name">{tp.name}</span>
+                                            <span className="tp-mode-badge">{MODE_LABELS[tp.mode] || tp.mode}</span>
+                                          </button>
+                                          <button className={`dept-activate-btn ${isActive ? 'dept-activate-btn--on' : ''}`} onClick={() => handleSetActiveTp(tp.id)}>{isActive ? 'Aktiv' : 'Sätt aktiv'}</button>
+                                          <button className="reset-btn" title="Nollställ data" onClick={() => setConfirmReset({ type: 'tp', id: tp.id, label: tp.name })}>↺</button>
+                                          <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'tp', id: tp.id, label: tp.name })}>&times;</button>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                  {otherDeptsCount > 0 && (
+                                    <div className="migrate-btn-wrap">
+                                      <button className="settings-btn settings-btn--migrate" onClick={() => handleMigrateClick(d, deptTps)}>
+                                        ⇄ Migrera till alla {otherDeptsCount} övriga avdelningar
+                                      </button>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                              <form className="settings-add-form tp-add-form" onSubmit={(e) => handleAddTp(e, d.id)}>
+                                <input type="text" placeholder="Ny mätpunkt (t.ex. Kassa 1)" value={deptState.name}
+                                  onChange={(e) => setNewTpByDept((prev) => ({ ...prev, [d.id]: { ...prev[d.id], name: e.target.value } }))} className="settings-input" />
+                                <select value={deptState.type}
+                                  onChange={(e) => setNewTpByDept((prev) => ({ ...prev, [d.id]: { ...prev[d.id], type: e.target.value } }))} className="settings-select">
+                                  <option value="physical">Fysisk plats</option>
+                                  <option value="online">Online</option>
+                                  <option value="other">Övriga</option>
+                                </select>
+                                <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {section === 'config' && (
+          <div className="settings-card">
+            <h2>Konfiguration{active ? ` — ${active.name}` : ''}</h2>
+            {!active ? <p className="settings-empty">Välj en kedja under Kedjor.</p> : (
+              <>
+                <p className="settings-card-desc">Standardinställningar per typ. Nya mätpunkter ärver dessa automatiskt.</p>
+                <div className="config-tabs">
+                  {['physical', 'online', 'other'].map((type) => (
+                    <button key={type} className={`config-tab ${configTab === type ? 'config-tab--active' : ''}`}
+                      onClick={() => setConfigTab(type)}>{TYPE_LABELS[type]}</button>
+                  ))}
+                </div>
+                {['physical', 'online', 'other'].map((type) => {
+                  if (configTab !== type) return null;
+                  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
+                  const config = active[configKey] || getDefaultConfig(type);
+                  const tpCount = touchpoints.filter((t) => t.type === type).length;
+                  return (
+                    <div key={type}>
+                      <ConfigForm config={config} type={type} showCountdown={true}
+                        onChange={(newConfig) => handleConfigChange(type, newConfig)} />
+                      {tpCount > 0 && (
+                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
+                          <button className="settings-btn settings-btn--primary" onClick={() => handleApplyToAll(type)}>
+                            Tillämpa på alla {tpCount} {TYPE_LABELS[type].toLowerCase()}-mätpunkter
+                          </button>
+                          <p className="settings-card-desc" style={{ marginTop: '0.4rem', marginBottom: 0 }}>Skriver över individuella inställningar.</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        )}
+
+        {section === 'backup' && (
+          <div className="settings-card">
+            <h2>Säkerhetskopiering</h2>
+            <div className="setting-row setting-row--col">
+              <div className="setting-info"><h3>Exportera backup</h3><p>Välj vilka kedjor som ska ingå (JSON).</p></div>
+              <div style={{ width: '100%', marginTop: '0.5rem' }}>
+                <div className="backup-checkbox-list">
+                  <label className="backup-checkbox-item">
+                    <input type="checkbox" checked={selectedExportIds.length === allChainIds.length}
+                      onChange={() => setSelectedExportIds((p) => p.length === allChainIds.length ? [] : allChainIds)} />
+                    <strong>Alla kedjor</strong>
+                  </label>
+                  {chains.map((c) => (
+                    <label key={c.id} className="backup-checkbox-item backup-checkbox-item--indent">
+                      <input type="checkbox" checked={selectedExportIds.includes(c.id)}
+                        onChange={() => setSelectedExportIds((p) => p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id])} />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+                <button className="settings-btn settings-btn--primary" disabled={selectedExportIds.length === 0}
+                  onClick={() => exportSelectedBackup(selectedExportIds, chains)}>Exportera</button>
               </div>
             </div>
-          )}
-        </div>
-
-        {importStatus === 'ok' && (
-          <p style={{ color: 'var(--color-promoter)', margin: '0.5rem 0 0' }}>
-            ✓ Data importerad!
-          </p>
-        )}
-        {importStatus === 'error' && (
-          <p style={{ color: 'var(--color-detractor)', margin: '0.5rem 0 0' }}>
-            ✗ Ogiltig fil – kontrollera att det är en giltig backup.
-          </p>
+            <div className="setting-row setting-row--col">
+              <div className="setting-info"><h3>Importera backup</h3><p>Välj fil och kedjor att importera. Data slås ihop.</p></div>
+              {!parsedBackup ? (
+                <label className="settings-upload" style={{ marginTop: '0.5rem' }}>
+                  <span className="settings-btn settings-btn--primary">Välj fil...</span>
+                  <input type="file" accept=".json" hidden onChange={handleFileSelected} />
+                </label>
+              ) : (
+                <div style={{ width: '100%', marginTop: '0.5rem' }}>
+                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Välj kedjor att importera:</p>
+                  <div className="backup-checkbox-list">
+                    <label className="backup-checkbox-item">
+                      <input type="checkbox" checked={selectedImportIds.length === parsedBackup.customers.length}
+                        onChange={() => { const all = parsedBackup.customers.map((c) => c.id); setSelectedImportIds((p) => p.length === all.length ? [] : all); }} />
+                      <strong>Alla kedjor</strong>
+                    </label>
+                    {parsedBackup.customers.map((c) => (
+                      <label key={c.id} className="backup-checkbox-item backup-checkbox-item--indent">
+                        <input type="checkbox" checked={selectedImportIds.includes(c.id)}
+                          onChange={() => setSelectedImportIds((p) => p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id])} />
+                        {c.name}
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button className="settings-btn settings-btn--primary" onClick={handleConfirmImport} disabled={selectedImportIds.length === 0}>Importera</button>
+                    <button className="settings-btn settings-btn--ghost" onClick={() => { setParsedBackup(null); setSelectedImportIds([]); }}>Avbryt</button>
+                  </div>
+                </div>
+              )}
+              {importStatus === 'ok' && <p style={{ color: 'var(--color-promoter)', margin: '0.5rem 0 0' }}>✓ Data importerad!</p>}
+              {importStatus === 'error' && <p style={{ color: 'var(--color-detractor)', margin: '0.5rem 0 0' }}>✗ Ogiltig fil.</p>}
+            </div>
+          </div>
         )}
       </div>
     </div>
   );
 }
-
-export default SettingsPage;

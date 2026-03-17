@@ -1,6 +1,5 @@
 import { categorize } from './npsCalculations';
-import { getResponses } from './storage';
-import { getCustomers } from './settings';
+import { getChains, TYPE_LABELS, MODE_LABELS } from './settings';
 
 const CATEGORY_LABELS = {
   detractor: 'Kritiker',
@@ -8,55 +7,76 @@ const CATEGORY_LABELS = {
   promoter: 'Ambassadör',
 };
 
-function buildRows(responses, includeCustomer = false, customerMap = {}) {
-  return responses
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .map((r) => {
-      const row = {};
-      if (includeCustomer) {
-        row['Kund'] = customerMap[r.customerId] || r.customerId || '';
-      }
-      row['Datum'] = new Date(r.timestamp).toLocaleDateString('sv-SE');
-      row['Tid'] = new Date(r.timestamp).toLocaleTimeString('sv-SE');
-      row['Poäng'] = r.score;
-      row['Kategori'] = CATEGORY_LABELS[categorize(r.score)];
-      row['Svarsalternativ'] = r.predefinedAnswer || '';
-      row['Kommentar'] = r.comment || '';
-      return row;
+function buildMaps(chains) {
+  const chainMap = {};
+  const deptMap = {};
+  const tpMap = {};
+  chains.forEach((c) => {
+    chainMap[c.id] = c.name;
+    (c.departments || []).forEach((d) => { deptMap[d.id] = { name: d.name, uniqueCode: d.uniqueCode || '' }; });
+    (c.touchpoints || []).forEach((t) => {
+      tpMap[t.id] = { name: t.name, departmentId: t.departmentId, type: t.type, mode: t.mode };
     });
+  });
+  return { chainMap, deptMap, tpMap };
+}
+
+function buildRows(responses, chains) {
+  const { chainMap, deptMap, tpMap } = buildMaps(chains);
+  return responses.sort((a, b) => b.timestamp - a.timestamp).map((r) => {
+    const tp = r.touchpointId ? tpMap[r.touchpointId] : null;
+    const dept = tp ? deptMap[tp.departmentId] : null;
+    return {
+      Datum: new Date(r.timestamp).toLocaleDateString('sv-SE'),
+      Tid: new Date(r.timestamp).toLocaleTimeString('sv-SE'),
+      Kedja: chainMap[r.customerId] || '',
+      Avdelning: dept ? dept.name : '',
+      'Avdelnings-ID': dept ? dept.uniqueCode : '',
+      Mätpunkt: tp ? tp.name : '',
+      Typ: tp ? (TYPE_LABELS[tp.type] || tp.type) : '',
+      Läge: tp ? (MODE_LABELS[tp.mode] || tp.mode) : '',
+      Poäng: r.score,
+      Kategori: CATEGORY_LABELS[categorize(r.score)],
+      Svarsalternativ: r.predefinedAnswer || '',
+      Kommentar: r.comment || '',
+      Uppföljning: r.followUpEmail || '',
+    };
+  });
 }
 
 function download(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
+  a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
 
 function toCsv(rows) {
-  if (rows.length === 0) return null;
+  if (!rows.length) return null;
   const headers = Object.keys(rows[0]);
-  const csvLines = [
+  return [
     headers.join(';'),
-    ...rows.map((row) =>
-      headers.map((h) => {
-        const val = String(row[h]);
-        return val.includes(';') || val.includes('"') || val.includes('\n')
-          ? `"${val.replace(/"/g, '""')}"`
-          : val;
-      }).join(';')
-    ),
-  ];
-  return csvLines.join('\r\n');
+    ...rows.map((row) => headers.map((h) => {
+      const val = String(row[h]);
+      return val.includes(';') || val.includes('"') || val.includes('\n')
+        ? `"${val.replace(/"/g, '""')}"` : val;
+    }).join(';')),
+  ].join('\r\n');
 }
 
-function buildXml(headers, xmlRows, sheetName) {
+function buildXml(rows, sheetName) {
+  if (!rows.length) return null;
+  const headers = Object.keys(rows[0]);
+  const xmlRows = rows.map((row) =>
+    '<Row>' + headers.map((h) => {
+      const val = row[h];
+      const type = typeof val === 'number' ? 'Number' : 'String';
+      return `<Cell><Data ss:Type="${type}">${String(val).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>`;
+    }).join('') + '</Row>'
+  );
   return `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
   <Worksheet ss:Name="${sheetName}">
     <Table>
       <Row>${headers.map((h) => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
@@ -66,65 +86,18 @@ function buildXml(headers, xmlRows, sheetName) {
 </Workbook>`;
 }
 
-function toXml(rows, sheetName = 'NPS') {
-  if (rows.length === 0) return null;
-  const headers = Object.keys(rows[0]);
-  const xmlRows = rows.map((row) =>
-    '<Row>' +
-    headers.map((h) => {
-      const val = row[h];
-      const type = typeof val === 'number' ? 'Number' : 'String';
-      return `<Cell><Data ss:Type="${type}">${String(val).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>`;
-    }).join('') +
-    '</Row>'
-  );
-  return { headers, xmlRows };
-}
-
-// Export active customer (filtered responses already passed in)
 export function exportCsv(responses) {
-  const rows = buildRows(responses);
+  const rows = buildRows(responses, getChains());
   const csv = toCsv(rows);
   if (!csv) return;
-  const bom = '\uFEFF';
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
-  download(blob, `nps-export-${new Date().toISOString().slice(0, 10)}.csv`);
+  download(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }),
+    `nps-export-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 export function exportExcel(responses) {
-  const rows = buildRows(responses);
-  const result = toXml(rows);
-  if (!result) return;
-  const { headers, xmlRows } = result;
-  const xml = buildXml(headers, xmlRows, 'NPS');
-  const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
-  download(blob, `nps-export-${new Date().toISOString().slice(0, 10)}.xls`);
-}
-
-// Export selected customer IDs
-export function exportSelectedCsv(selectedIds) {
-  const allResponses = getResponses();
-  const customers = getCustomers();
-  const customerMap = Object.fromEntries(customers.map((c) => [c.id, c.name]));
-  const filtered = allResponses.filter((r) => selectedIds.includes(r.customerId));
-  const rows = buildRows(filtered, selectedIds.length > 1, customerMap);
-  const csv = toCsv(rows);
-  if (!csv) return;
-  const bom = '\uFEFF';
-  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8' });
-  download(blob, `nps-export-urval-${new Date().toISOString().slice(0, 10)}.csv`);
-}
-
-export function exportSelectedExcel(selectedIds) {
-  const allResponses = getResponses();
-  const customers = getCustomers();
-  const customerMap = Object.fromEntries(customers.map((c) => [c.id, c.name]));
-  const filtered = allResponses.filter((r) => selectedIds.includes(r.customerId));
-  const rows = buildRows(filtered, selectedIds.length > 1, customerMap);
-  const result = toXml(rows, 'NPS - Urval');
-  if (!result) return;
-  const { headers, xmlRows } = result;
-  const xml = buildXml(headers, xmlRows, 'NPS - Urval');
-  const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
-  download(blob, `nps-export-urval-${new Date().toISOString().slice(0, 10)}.xls`);
+  const rows = buildRows(responses, getChains());
+  const xml = buildXml(rows, 'NPS');
+  if (!xml) return;
+  download(new Blob([xml], { type: 'application/vnd.ms-excel' }),
+    `nps-export-${new Date().toISOString().slice(0, 10)}.xls`);
 }

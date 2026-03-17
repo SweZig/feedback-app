@@ -2,11 +2,11 @@ import { categorize } from '../utils/npsCalculations';
 import './CommentList.css';
 
 function CommentList({ responses }) {
-  const withComments = responses
-    .filter((r) => r.comment || r.predefinedAnswer)
+  const withContent = responses
+    .filter((r) => r.comment || r.predefinedAnswer || r.followUpEmail)
     .sort((a, b) => b.timestamp - a.timestamp);
 
-  if (withComments.length === 0) {
+  if (withContent.length === 0) {
     return <p className="comments-empty">Inga kommentarer ännu.</p>;
   }
 
@@ -14,7 +14,7 @@ function CommentList({ responses }) {
     <div className="comments">
       <h3>Kommentarer</h3>
       <ul className="comments-list">
-        {withComments.map((r) => (
+        {withContent.map((r) => (
           <li key={r.id} className="comment-item">
             <div className="comment-header">
               <span className={`comment-badge comment-badge--${categorize(r.score)}`}>
@@ -28,6 +28,13 @@ function CommentList({ responses }) {
               <span className="comment-predefined">{r.predefinedAnswer}</span>
             )}
             {r.comment && <p className="comment-text">{r.comment}</p>}
+            {r.followUpEmail && (
+              <div className="comment-followup">
+                <span className="comment-followup-icon">✉</span>
+                <span className="comment-followup-email">{r.followUpEmail}</span>
+                <span className="comment-followup-label">vill bli kontaktad</span>
+              </div>
+            )}
           </li>
         ))}
       </ul>

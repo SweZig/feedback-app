@@ -1,5 +1,10 @@
-import { useState, useCallback } from 'react';
-import { getActiveCustomer } from './utils/settings';
+import { useState, useCallback, useEffect } from 'react';
+import {
+  getActiveCustomer,
+  getChains,
+  setActiveChainId,
+  updateChain,
+} from './utils/settings';
 import Navigation from './components/Navigation';
 import SurveyPage from './components/SurveyPage';
 import ReportPage from './components/ReportPage';
@@ -8,13 +13,31 @@ import './App.css';
 
 function App() {
   const [page, setPage] = useState('survey');
-  const [settingsVersion, setSettingsVersion] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const activeCustomer = getActiveCustomer();
 
   const handleSettingsChange = useCallback(() => {
-    setSettingsVersion((v) => v + 1);
+    setRefreshKey((v) => v + 1);
   }, []);
+
+  // Read ?tp= from URL and set active touchpoint + chain
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tpId = params.get('tp');
+    if (tpId) {
+      const chains = getChains();
+      const chain = chains.find((c) =>
+        (c.touchpoints || []).some((t) => t.id === tpId)
+      );
+      if (chain) {
+        setActiveChainId(chain.id);
+        updateChain(chain.id, { activeTouchpointId: tpId });
+        setPage('survey');
+        setRefreshKey((v) => v + 1);
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="app">
@@ -24,13 +47,20 @@ function App() {
         activeCustomer={activeCustomer}
       />
       <main className="app-main">
-        {page === 'survey' && <SurveyPage activeCustomer={activeCustomer} />}
-        {page === 'report' && <ReportPage activeCustomer={activeCustomer} />}
-        {page === 'settings' && (
-          <SettingsPage
-            key={settingsVersion}
-            onSettingsChange={handleSettingsChange}
+        {page === 'survey' && (
+          <SurveyPage
+            key={refreshKey}
+            activeCustomer={activeCustomer}
           />
+        )}
+        {page === 'report' && (
+          <ReportPage
+            key={refreshKey}
+            activeCustomer={activeCustomer}
+          />
+        )}
+        {page === 'settings' && (
+          <SettingsPage onSettingsChange={handleSettingsChange} />
         )}
       </main>
     </div>
