@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { getFilteredResponses, getResponsesByDateRange } from '../utils/storage';
-import { calculateNPS } from '../utils/npsCalculations';
+import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
 import { TYPE_LABELS } from '../utils/settings';
 import CommentList from './CommentList';
