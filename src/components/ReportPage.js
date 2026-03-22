@@ -98,7 +98,7 @@ function WeeklyHeatmap({ responses, touchpoints }) {
 }
 
 // NPS gauge SVG
-function NpsGauge({ nps }) {
+function NpsGauge({ nps, total, periodLabel }) {
   const clampedNps = Math.max(-100, Math.min(100, nps));
   const angleDeg = 180 - ((clampedNps + 100) / 200) * 180;
   const angleRad = (angleDeg * Math.PI) / 180;
@@ -106,19 +106,27 @@ function NpsGauge({ nps }) {
   const ny = 100 - 65 * Math.sin(angleRad);
   const color = nps >= 30 ? '#27ae60' : nps >= 0 ? '#f39c12' : '#e74c3c';
   return (
-    <svg viewBox="0 0 200 120" className="gauge-svg">
-      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#e0e0e0" strokeWidth="18" strokeLinecap="round"/>
-      <path d="M 20 100 A 80 80 0 0 1 68 34" fill="none" stroke="#e74c3c" strokeWidth="18" strokeLinecap="round"/>
-      <path d="M 68 34 A 80 80 0 0 1 120 20" fill="none" stroke="#f39c12" strokeWidth="18" strokeLinecap="round"/>
-      <path d="M 120 20 A 80 80 0 0 1 180 100" fill="none" stroke="#27ae60" strokeWidth="18" strokeLinecap="round"/>
-      <line x1="100" y1="100" x2={nx} y2={ny} stroke="#2c3e50" strokeWidth="2.5" strokeLinecap="round"/>
-      <circle cx="100" cy="100" r="5" fill="#2c3e50"/>
-      <text x="100" y="87" textAnchor="middle" fontSize="26" fontWeight="500" fill={color}>{nps >= 0 ? '+' : ''}{nps}</text>
-      <text x="100" y="103" textAnchor="middle" fontSize="10" fill="#7f8c8d">NPS-poäng</text>
-      <text x="14" y="118" textAnchor="middle" fontSize="9" fill="#e74c3c">-100</text>
-      <text x="100" y="14" textAnchor="middle" fontSize="9" fill="#7f8c8d">0</text>
-      <text x="186" y="118" textAnchor="middle" fontSize="9" fill="#27ae60">+100</text>
-    </svg>
+    <div className="gauge-block">
+      <svg viewBox="0 0 200 130" className="gauge-svg">
+        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#e0e0e0" strokeWidth="18" strokeLinecap="round"/>
+        <path d="M 20 100 A 80 80 0 0 1 68 34" fill="none" stroke="#e74c3c" strokeWidth="18" strokeLinecap="round"/>
+        <path d="M 68 34 A 80 80 0 0 1 120 20" fill="none" stroke="#f39c12" strokeWidth="18" strokeLinecap="round"/>
+        <path d="M 120 20 A 80 80 0 0 1 180 100" fill="none" stroke="#27ae60" strokeWidth="18" strokeLinecap="round"/>
+        <line x1="100" y1="100" x2={nx} y2={ny} stroke="#2c3e50" strokeWidth="2.5" strokeLinecap="round"/>
+        <circle cx="100" cy="100" r="5" fill="#2c3e50"/>
+        <text x="100" y="82" textAnchor="middle" fontSize="38" fontWeight="700" fill={color}>{nps >= 0 ? '+' : ''}{nps}</text>
+        <text x="100" y="97" textAnchor="middle" fontSize="9" fill="#7f8c8d">NPS-poäng</text>
+        <text x="14" y="118" textAnchor="middle" fontSize="9" fill="#e74c3c">-100</text>
+        <text x="100" y="14" textAnchor="middle" fontSize="9" fill="#7f8c8d">0</text>
+        <text x="186" y="118" textAnchor="middle" fontSize="9" fill="#27ae60">+100</text>
+      </svg>
+      {(total !== undefined || periodLabel) && (
+        <div className="gauge-sub">
+          {total !== undefined && <span className="gauge-sub-count">{total} svar</span>}
+          {periodLabel && <span className="gauge-sub-period">{periodLabel}</span>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -139,6 +147,82 @@ function DistBar({ det, pas, pro, detN, pasN, proN }) {
   );
 }
 
+function TotalChainCard({ allResponses, periodLabel, title = 'Total Kedja' }) {
+  const result = calculateNps(allResponses);
+  return (
+    <div className="report-card total-chain-card">
+      <h3 className="total-chain-title">{title}</h3>
+      {!result ? (
+        <p className="report-empty-text">Inga svar under perioden.</p>
+      ) : (
+        <>
+          <div className="total-chain-body">
+            <NpsGauge nps={result.nps} total={result.total} periodLabel={periodLabel} />
+            <div className="total-chain-dist">
+              <DistBar
+                det={result.percentages.detractor} pas={result.percentages.passive} pro={result.percentages.promoter}
+                detN={result.counts.detractor} pasN={result.counts.passive} proN={result.counts.promoter}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TouchpointsView({ touchpoints, departments, allResponses, periodLabel }) {
+  if (!touchpoints.length) {
+    return (
+      <div className="report-card report-empty">
+        <p>Inga mätpunkter konfigurerade för denna kedja.</p>
+      </div>
+    );
+  }
+
+  const deptMap = Object.fromEntries(departments.map((d) => [d.id, d]));
+  const sorted = [...touchpoints].sort((a, b) => {
+    const dA = deptMap[a.departmentId]?.order ?? 999;
+    const dB = deptMap[b.departmentId]?.order ?? 999;
+    return dA !== dB ? dA - dB : (a.order ?? 0) - (b.order ?? 0);
+  });
+
+  return (
+    <>
+      <TotalChainCard allResponses={allResponses} periodLabel={periodLabel} />
+      <div className="tp-grid">
+        {sorted.map((tp) => {
+          const tpResponses = allResponses.filter((r) => r.touchpointId === tp.id);
+          const result = calculateNps(tpResponses);
+          const dept = deptMap[tp.departmentId];
+          return (
+            <div key={tp.id} className="report-card tp-card">
+              <div className="tp-card-header">
+                {dept && <span className="tp-card-dept">{dept.name}</span>}
+                <h3 className="tp-card-name">{tp.name}</h3>
+                <span className={`tp-card-type tp-card-type--${tp.type}`}>{TYPE_LABELS[tp.type]}</span>
+              </div>
+              {!result ? (
+                <p className="report-empty-text">Inga svar under perioden.</p>
+              ) : (
+                <>
+                  <NpsGauge nps={result.nps} total={result.total} periodLabel={periodLabel} />
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <DistBar
+                      det={result.percentages.detractor} pas={result.percentages.passive} pro={result.percentages.promoter}
+                      detN={result.counts.detractor} pasN={result.counts.passive} proN={result.counts.promoter}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export default function ReportPage({ activeCustomer }) {
   const [filterDays, setFilterDays] = useState(null);
   const [dateRange, setDateRange] = useState(false);
@@ -146,14 +230,13 @@ export default function ReportPage({ activeCustomer }) {
   const [toDate, setToDate] = useState('');
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
+  const [focusImprovements, setFocusImprovements] = useState(false);
 
   const customerId = activeCustomer?.id || null;
   const departments = activeCustomer?.departments || [];
   const touchpoints = activeCustomer?.touchpoints || [];
   const hasDepts = departments.length > 0;
   const hasPhysical = touchpoints.some((t) => t.type === 'physical');
-
-  const existingTypes = [...new Set(touchpoints.map((t) => t.type).filter(Boolean))];
 
   function resolveTouchpointIds(mode) {
     if (mode === 'all') return null;
@@ -174,6 +257,11 @@ export default function ReportPage({ activeCustomer }) {
   const responses = dateRange
     ? getResponsesByDateRange(fromDate, toDate, customerId, touchpointIds)
     : getFilteredResponses(filterDays, customerId, touchpointIds);
+
+  // For Mätpunkter view: date-filtered only, not tp-filtered
+  const allResponses = dateRange
+    ? getResponsesByDateRange(fromDate, toDate, customerId, null)
+    : getFilteredResponses(filterDays, customerId, null);
 
   const result = calculateNps(responses);
 
@@ -201,16 +289,32 @@ export default function ReportPage({ activeCustomer }) {
   });
   const answerEntries = Object.entries(answerCounts).sort((a, b) => b[1] - a[1]);
 
+  // Build polarity map from all configs in activeCustomer
+  const polarityMap = {};
+  ['physicalConfig', 'onlineConfig', 'otherConfig'].forEach((key) => {
+    (activeCustomer?.[key]?.predefinedAnswers || []).forEach((a) => {
+      if (a && typeof a === 'object' && a.polarity) polarityMap[a.text] = a.polarity;
+    });
+  });
+  (activeCustomer?.touchpoints || []).forEach((tp) => {
+    (tp.configOverride?.predefinedAnswers || []).forEach((a) => {
+      if (a && typeof a === 'object' && a.polarity) polarityMap[a.text] = a.polarity;
+    });
+  });
+
   function isPositiveAnswer(answer) {
+    if (polarityMap[answer] === 'positive') return true;
+    if (polarityMap[answer] === 'negative') return false;
+    // Fallback: derive from data heuristically
     const pro = responses.filter((r) => r.predefinedAnswer === answer && r.score >= 9).length;
     const det = responses.filter((r) => r.predefinedAnswer === answer && r.score <= 6).length;
     return pro >= det;
   }
 
-  const typeButtons = [
-    { key: 'all', label: 'Hela kedjan' },
-    ...existingTypes.map((type) => ({ key: `type:${type}`, label: `Alla ${TYPE_LABELS[type]?.toLowerCase()}` })),
-  ];
+  // Filter comments based on focusImprovements toggle (scores 0–6)
+  const commentResponses = focusImprovements
+    ? responses.filter((r) => r.score <= 6)
+    : responses;
 
   const selectValue = (filterMode.startsWith('dept:') || filterMode.startsWith('tp:')) ? filterMode : '';
   const periodLabel = dateRange
@@ -233,22 +337,21 @@ export default function ReportPage({ activeCustomer }) {
             onClick={() => setActiveView('weekly')}
           >Veckoanalys</button>
         )}
+        {touchpoints.length > 0 && (
+          <button
+            className={`report-view-tab ${activeView === 'touchpoints' ? 'report-view-tab--active' : ''}`}
+            onClick={() => setActiveView('touchpoints')}
+          >Mätpunkter</button>
+        )}
       </div>
 
-      {/* Filters (shared for both views) */}
-      {hasDepts && (
+      {/* Filters – only shown for Översikt (dept/tp drill-down) */}
+      {hasDepts && activeView === 'overview' && (
         <div className="report-card">
-          <div className="report-dept-filters">
-            {typeButtons.map((b) => (
-              <button key={b.key}
-                className={`filter-btn ${filterMode === b.key ? 'filter-btn--active' : ''}`}
-                onClick={() => setFilterMode(b.key)}>{b.label}</button>
-            ))}
-          </div>
           <select className="report-dept-select" value={selectValue}
             onChange={(e) => { setFilterMode(e.target.value || 'all'); }}
           >
-            <option value="">— Välj avdelning eller mätpunkt —</option>
+            <option value="">— Filtrera på avdelning eller mätpunkt —</option>
             {departments.map((dept) => {
               const deptTps = touchpoints.filter((t) => t.departmentId === dept.id).sort((a, b) => a.order - b.order);
               if (!deptTps.length) return null;
@@ -284,11 +387,24 @@ export default function ReportPage({ activeCustomer }) {
 
       {/* ===== WEEKLY VIEW ===== */}
       {activeView === 'weekly' && (
-        <div className="report-card">
-          <h3>Veckoanalys – fysiska mätpunkter</h3>
-          <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar.</p>
-          <WeeklyHeatmap responses={responses} touchpoints={touchpoints} />
-        </div>
+        <>
+          <TotalChainCard allResponses={allResponses} periodLabel={periodLabel} />
+          <div className="report-card">
+            <h3>Veckoanalys – fysiska mätpunkter</h3>
+            <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar.</p>
+            <WeeklyHeatmap responses={allResponses} touchpoints={touchpoints} />
+          </div>
+        </>
+      )}
+
+      {/* ===== MÄTPUNKTER VIEW ===== */}
+      {activeView === 'touchpoints' && (
+        <TouchpointsView
+          touchpoints={touchpoints}
+          departments={departments}
+          allResponses={allResponses}
+          periodLabel={periodLabel}
+        />
       )}
 
       {/* ===== OVERVIEW ===== */}
@@ -302,26 +418,17 @@ export default function ReportPage({ activeCustomer }) {
             <>
               {/* Gauge */}
               <div className="report-card">
-                <div className="gauge-layout">
-                  <div className="gauge-wrap">
-                    <NpsGauge nps={result.nps} />
+                <h3 className="total-chain-title">
+                  {filterMode === 'all' ? 'Total Kedja' : 'Filtrerat urval'}
+                </h3>
+                <div className="total-chain-body">
+                  <NpsGauge nps={result.nps} total={result.total} periodLabel={periodLabel} />
+                  <div className="total-chain-dist">
+                    <DistBar
+                      det={result.percentages.detractor} pas={result.percentages.passive} pro={result.percentages.promoter}
+                      detN={result.counts.detractor} pasN={result.counts.passive} proN={result.counts.promoter}
+                    />
                   </div>
-                  <div className="gauge-meta">
-                    <div className="metric-card">
-                      <div className="metric-label">Svar totalt</div>
-                      <div className="metric-val">{result.total}</div>
-                    </div>
-                    <div className="metric-card">
-                      <div className="metric-label">Period</div>
-                      <div className="metric-val metric-val--sm">{periodLabel}</div>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ marginTop: '1rem' }}>
-                  <DistBar
-                    det={result.percentages.detractor} pas={result.percentages.passive} pro={result.percentages.promoter}
-                    detN={result.counts.detractor} pasN={result.counts.passive} proN={result.counts.promoter}
-                  />
                 </div>
               </div>
 
@@ -410,7 +517,21 @@ export default function ReportPage({ activeCustomer }) {
 
               {/* Comments */}
               <div className="report-card">
-                <CommentList responses={responses} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <button
+                    className={`setting-switch ${focusImprovements ? 'setting-switch--on' : ''}`}
+                    onClick={() => setFocusImprovements((f) => !f)}
+                  >
+                    <span className="setting-switch-knob" />
+                  </button>
+                  <span
+                    style={{ fontSize: '0.85rem', color: 'var(--color-text-light)', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setFocusImprovements((f) => !f)}
+                  >
+                    Fokusera enbart på förbättringsåtgärder
+                  </span>
+                </div>
+                <CommentList responses={commentResponses} />
               </div>
 
               <div className="report-export">

@@ -4,6 +4,9 @@ import { addResponse } from '../utils/storage';
 import { TYPE_LABELS, MODE_LABELS, getEffectiveConfig } from '../utils/settings';
 import './SurveyPage.css';
 
+const MEGAFON_LOGO = process.env.PUBLIC_URL + '/Megafon_bla_512px.png';
+const FA_LOGO = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
+
 const FOLLOW_UP_THRESHOLD = 2; // scores 0, 1, 2 trigger follow-up
 
 function SurveyPage({ activeCustomer }) {
@@ -29,11 +32,26 @@ function SurveyPage({ activeCustomer }) {
     npsColorMode = 'colored',
     countdownSeconds = 6,
     followUpEnabled = false,
+    showPositiveAnswersForPromoters = false,
+    showNegativeAnswersForDetractors = false,
   } = config;
+
+  // Normalize to objects and filter by polarity + score
+  const normalizedAnswers = predefinedAnswers.map((a) =>
+    typeof a === 'string' ? { text: a, polarity: null } : a
+  );
+
+  const visibleAnswers = (score === null)
+    ? normalizedAnswers
+    : normalizedAnswers.filter((a) => {
+        if (a.polarity === 'positive') return showPositiveAnswersForPromoters && score >= 9;
+        if (a.polarity === 'negative') return showNegativeAnswersForDetractors && score <= 3;
+        return true; // ingen polarity = visas alltid
+      });
 
   const mode = activeTp?.mode || 'app';
   const showFollowUp = followUpEnabled && score !== null && score <= FOLLOW_UP_THRESHOLD;
-  const hasFollowUp = freeTextEnabled || (predefinedAnswersEnabled && predefinedAnswers.length > 0) || showFollowUp;
+  const hasFollowUp = freeTextEnabled || (predefinedAnswersEnabled && visibleAnswers.length > 0) || showFollowUp;
 
   useEffect(() => {
     if (!submitted) return;
@@ -92,6 +110,7 @@ function SurveyPage({ activeCustomer }) {
   if (submitted) {
     return (
       <div className="survey-thanks">
+        <img src={MEGAFON_LOGO} alt="Feedback App" className="survey-megafon-logo" />
         <h2>Tack för din feedback!</h2>
         <p>Ditt svar har sparats.</p>
         <div className="survey-countdown">{countdown}</div>
@@ -101,8 +120,7 @@ function SurveyPage({ activeCustomer }) {
 
   return (
     <form className="survey-form" onSubmit={handleSubmit}>
-      <TpBadge />
-      <h2>Hur troligt är det att du skulle rekommendera oss?</h2>
+      <h2>På en skala från 0–10, hur troligt är det att du skulle rekommendera oss till vänner och bekanta?</h2>
       <ScoreSelector
         value={score}
         onChange={(val) => {
@@ -110,7 +128,13 @@ function SurveyPage({ activeCustomer }) {
           // Reset follow-up email if score changes to above threshold
           if (val > FOLLOW_UP_THRESHOLD) setFollowUpEmail('');
           const willShowFollowUp = followUpEnabled && val <= FOLLOW_UP_THRESHOLD;
-          const willHaveFollowUp = freeTextEnabled || (predefinedAnswersEnabled && predefinedAnswers.length > 0) || willShowFollowUp;
+          // Use same polarity-filtering logic as visibleAnswers/hasFollowUp
+          const willVisibleAnswers = normalizedAnswers.filter((a) => {
+            if (a.polarity === 'positive') return showPositiveAnswersForPromoters && val >= 9;
+            if (a.polarity === 'negative') return showNegativeAnswersForDetractors && val <= 3;
+            return true;
+          });
+          const willHaveFollowUp = freeTextEnabled || (predefinedAnswersEnabled && willVisibleAnswers.length > 0) || willShowFollowUp;
           if (!willHaveFollowUp) {
             addResponse(val, '', activeCustomer?.id, '', activeTpId, '');
             setSubmitted(true);
@@ -119,15 +143,20 @@ function SurveyPage({ activeCustomer }) {
         colorMode={npsColorMode}
       />
 
-      {score !== null && predefinedAnswersEnabled && predefinedAnswers.length > 0 && (
+      <div className="survey-meta-row">
+        <TpBadge />
+        {activeTp && <img src={FA_LOGO} alt="Feedback App" className="survey-fa-logo" />}
+      </div>
+
+      {score !== null && predefinedAnswersEnabled && visibleAnswers.length > 0 && (
         <div className="survey-predefined">
           <p className="survey-predefined-label">Vad beskriver bäst din upplevelse?</p>
           <div className="survey-predefined-buttons">
-            {predefinedAnswers.map((answer) => (
-              <button key={answer} type="button"
-                className={`survey-predefined-btn ${predefinedAnswer === answer ? 'survey-predefined-btn--selected' : ''}`}
-                onClick={() => setPredefinedAnswer(predefinedAnswer === answer ? '' : answer)}
-              >{answer}</button>
+            {visibleAnswers.map((answer) => (
+              <button key={answer.text} type="button"
+                className={`survey-predefined-btn ${predefinedAnswer === answer.text ? 'survey-predefined-btn--selected' : ''}`}
+                onClick={() => setPredefinedAnswer(predefinedAnswer === answer.text ? '' : answer.text)}
+              >{answer.text}</button>
             ))}
           </div>
         </div>

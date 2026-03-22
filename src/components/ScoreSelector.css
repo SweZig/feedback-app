@@ -55,6 +55,12 @@
 }
 
 .score-btn--neutral {
-  background: #bdc3c7;
-  color: #fff;
+  background: transparent;
+  color: var(--color-text);
+  border-color: #bdc3c7 !important;
+}
+
+.score-btn--neutral.score-btn--selected {
+  background: transparent;
+  border-color: var(--color-text) !important;
 }

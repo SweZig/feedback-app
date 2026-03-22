@@ -133,8 +133,30 @@ function ConfigForm({ config, onChange, type, showCountdown = false }) {
           <span className="setting-switch-knob" /></button>
       </div>
       {config.predefinedAnswersEnabled && (
-        <PredefinedAnswers answers={config.predefinedAnswers || []}
-          onChange={(answers) => onChange({ ...config, predefinedAnswers: answers })} />
+        <>
+          <PredefinedAnswers answers={config.predefinedAnswers || []}
+            onChange={(answers) => onChange({ ...config, predefinedAnswers: answers })} />
+          <div className="setting-row">
+            <div className="setting-info">
+              <h3>Visa positiva alternativ enbart med 9–10</h3>
+              <p>Positiva svarsalternativ visas bara när kunden gett betyg 9 eller 10.</p>
+            </div>
+            <button className={`setting-switch ${config.showPositiveAnswersForPromoters ? 'setting-switch--on' : ''}`}
+              onClick={() => onChange({ ...config, showPositiveAnswersForPromoters: !config.showPositiveAnswersForPromoters })}>
+              <span className="setting-switch-knob" />
+            </button>
+          </div>
+          <div className="setting-row">
+            <div className="setting-info">
+              <h3>Visa negativa alternativ enbart med 0–3</h3>
+              <p>Negativa svarsalternativ visas bara när kunden gett betyg 0–3.</p>
+            </div>
+            <button className={`setting-switch ${config.showNegativeAnswersForDetractors ? 'setting-switch--on' : ''}`}
+              onClick={() => onChange({ ...config, showNegativeAnswersForDetractors: !config.showNegativeAnswersForDetractors })}>
+              <span className="setting-switch-knob" />
+            </button>
+          </div>
+        </>
       )}
       <div className="setting-row">
         <div className="setting-info">
@@ -155,10 +177,20 @@ function PredefinedAnswers({ answers, onChange }) {
   const [editText, setEditText] = useState('');
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
+
+  // Normalize to objects for backward compat
+  const normalized = answers.map((a) => (typeof a === 'string' ? { text: a, polarity: null } : a));
+
+  function togglePolarity(i, p) {
+    const u = [...normalized];
+    u[i] = { ...u[i], polarity: u[i].polarity === p ? null : p };
+    onChange(u);
+  }
+
   return (
     <div className="setting-predefined">
       <ul className="predefined-list">
-        {answers.map((answer, i) => (
+        {normalized.map((answer, i) => (
           <li key={i}
             className={'predefined-item' + (dragIdx === i ? ' predefined-item--dragging' : '') + (dragOverIdx === i ? ' predefined-item--drag-over' : '')}
             draggable
@@ -166,7 +198,7 @@ function PredefinedAnswers({ answers, onChange }) {
             onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
             onDrop={() => {
               if (dragIdx === null || dragIdx === i) { setDragIdx(null); setDragOverIdx(null); return; }
-              const u = [...answers]; const [m] = u.splice(dragIdx, 1); u.splice(i, 0, m);
+              const u = [...normalized]; const [m] = u.splice(dragIdx, 1); u.splice(i, 0, m);
               onChange(u); setDragIdx(null); setDragOverIdx(null);
             }}
             onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
@@ -175,7 +207,7 @@ function PredefinedAnswers({ answers, onChange }) {
             {editIdx === i ? (
               <form className="predefined-edit-form" onSubmit={(e) => {
                 e.preventDefault(); if (!editText.trim()) return;
-                const u = [...answers]; u[i] = editText.trim(); onChange(u); setEditIdx(null);
+                const u = [...normalized]; u[i] = { ...u[i], text: editText.trim() }; onChange(u); setEditIdx(null);
               }}>
                 <input className="settings-input" value={editText}
                   onChange={(e) => setEditText(e.target.value)} autoFocus
@@ -184,18 +216,40 @@ function PredefinedAnswers({ answers, onChange }) {
               </form>
             ) : (
               <span className="predefined-text"
-                onDoubleClick={() => { setEditIdx(i); setEditText(answer); }}
-                title="Dubbelklicka för att redigera">{answer}</span>
+                onDoubleClick={() => { setEditIdx(i); setEditText(answer.text); }}
+                title="Dubbelklicka för att redigera">{answer.text}</span>
             )}
+            <button
+              type="button"
+              title="Positivt alternativ"
+              onClick={() => togglePolarity(i, 'positive')}
+              style={{
+                width: '1.6rem', height: '1.6rem', borderRadius: '50%', border: '1.5px solid',
+                fontWeight: 700, fontSize: '1rem', lineHeight: 1, cursor: 'pointer', flexShrink: 0,
+                borderColor: answer.polarity === 'positive' ? '#27ae60' : '#ccc',
+                background: answer.polarity === 'positive' ? '#27ae60' : 'transparent',
+                color: answer.polarity === 'positive' ? '#fff' : '#888',
+              }}>+</button>
+            <button
+              type="button"
+              title="Negativt alternativ"
+              onClick={() => togglePolarity(i, 'negative')}
+              style={{
+                width: '1.6rem', height: '1.6rem', borderRadius: '50%', border: '1.5px solid',
+                fontWeight: 700, fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', flexShrink: 0,
+                borderColor: answer.polarity === 'negative' ? '#e74c3c' : '#ccc',
+                background: answer.polarity === 'negative' ? '#e74c3c' : 'transparent',
+                color: answer.polarity === 'negative' ? '#fff' : '#888',
+              }}>−</button>
             <button className="predefined-remove"
-              onClick={() => onChange(answers.filter((_, idx) => idx !== i))}>&times;</button>
+              onClick={() => onChange(normalized.filter((_, idx) => idx !== i))}>&times;</button>
           </li>
         ))}
       </ul>
-      {answers.length < 6 && (
+      {normalized.length < 6 && (
         <form className="predefined-add-form" onSubmit={(e) => {
           e.preventDefault(); if (!newAnswer.trim()) return;
-          onChange([...answers, newAnswer.trim()]); setNewAnswer('');
+          onChange([...normalized, { text: newAnswer.trim(), polarity: null }]); setNewAnswer('');
         }}>
           <input type="text" placeholder="Nytt svarsalternativ..." value={newAnswer}
             onChange={(e) => setNewAnswer(e.target.value)} className="settings-input" />
@@ -330,6 +384,7 @@ export default function SettingsPage({ onSettingsChange }) {
   const [selectedTp, setSelectedTp] = useState(null);
 
   const [configTab, setConfigTab] = useState('physical');
+  const [confirmApplyToAll, setConfirmApplyToAll] = useState(null); // { type, newConfig, tpCount }
 
   const [selectedExportIds, setSelectedExportIds] = useState(() => getChains().map((c) => c.id));
   const [parsedBackup, setParsedBackup] = useState(null);
@@ -436,6 +491,8 @@ export default function SettingsPage({ onSettingsChange }) {
     const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
     updateChain(active.id, { [key]: newConfig });
     setChains(getChains()); onSettingsChange();
+    const tpCount = (active.touchpoints || []).filter((t) => t.type === type).length;
+    if (tpCount > 0) setConfirmApplyToAll({ type, newConfig, tpCount });
   }
 
   function handleApplyToAll(type) {
@@ -471,6 +528,14 @@ export default function SettingsPage({ onSettingsChange }) {
           message={`Migrera mätpunkter från "${confirmMigrate.deptName}" till alla ${confirmMigrate.otherCount} övriga avdelningar?`}
           detail={`Kopierar: ${confirmMigrate.tpNames.join(', ')}. Avdelningar som redan har samma namn hoppas över.`}
           onConfirm={executeMigrate} onCancel={() => setConfirmMigrate(null)} />
+      )}
+      {confirmApplyToAll && (
+        <ConfirmDialog
+          message={`Tillämpa på alla ${confirmApplyToAll.tpCount} ${TYPE_LABELS[confirmApplyToAll.type].toLowerCase()}-mätpunkter?`}
+          detail="Skriver över deras individuella inställningar med kedjans nuvarande konfiguration."
+          onConfirm={() => { handleApplyToAll(confirmApplyToAll.type); setConfirmApplyToAll(null); }}
+          onCancel={() => setConfirmApplyToAll(null)}
+        />
       )}
       {selectedTp && (
         <TouchpointModal tp={selectedTp.tp} dept={selectedTp.dept} chain={active}

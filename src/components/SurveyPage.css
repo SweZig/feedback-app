@@ -7,7 +7,7 @@
 }
 
 .survey-form h2,
-.survey-thanks h2 { margin-top: 0; font-size: 1.25rem; }
+.survey-thanks h2 { margin-top: 0; font-size: 1.1rem; font-weight: 600; line-height: 1.45; }
 
 .survey-thanks { text-align: center; }
 
@@ -15,21 +15,60 @@
 .survey-link-msg { font-size: 1.05rem; font-weight: 600; color: var(--color-text); margin: 1rem 0 0.5rem; }
 .survey-link-sub { font-size: 0.9rem; color: var(--color-text-light); margin: 0; }
 
+/* Round score buttons override */
+.survey-form .score-btn {
+  border-radius: 50% !important;
+  padding: 0 !important;
+}
+
+/* Force score-buttons to not stretch children */
+.survey-form .score-buttons {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Meta row: badge + FA logo below score selector */
+.survey-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+  margin-bottom: 1.25rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--color-border);
+}
+
 .survey-dept-badge {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  margin-bottom: 1rem; padding: 0.35rem 0.75rem;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
   background: var(--color-bg); border-radius: 20px; border: 1px solid var(--color-border);
   flex-wrap: wrap;
 }
 
-.survey-dept-type { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; flex-shrink: 0; }
+.survey-dept-type { font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; flex-shrink: 0; }
 .survey-dept-type--physical { background: #e6f1fb; color: #185fa5; }
 .survey-dept-type--online { background: #eaf3de; color: #3b6d11; }
 .survey-dept-type--other { background: var(--color-border); color: var(--color-text-light); }
 
-.survey-dept-name { font-size: 0.85rem; font-weight: 600; color: var(--color-text); }
-.survey-dept-sep { font-size: 0.85rem; color: var(--color-text-light); }
-.survey-tp-name { font-size: 0.85rem; color: var(--color-text-light); }
+.survey-dept-name { font-size: 0.75rem; font-weight: 600; color: var(--color-text); }
+.survey-dept-sep { font-size: 0.75rem; color: var(--color-text-light); }
+.survey-tp-name { font-size: 0.75rem; color: var(--color-text-light); }
+
+.survey-fa-logo {
+  height: 66px;
+  width: auto;
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+/* Thanks screen */
+.survey-megafon-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  margin-bottom: 0.25rem;
+}
 
 .survey-label {
   display: block; font-size: 0.9rem; font-weight: 600;

@@ -21,6 +21,8 @@ const DEFAULT_PHYSICAL_CONFIG = {
   countdownSeconds: 6,
   predefinedAnswersEnabled: false,
   predefinedAnswers: [],
+  showPositiveAnswersForPromoters: false,
+  showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
 };
 
@@ -28,6 +30,8 @@ const DEFAULT_ONLINE_CONFIG = {
   freeTextEnabled: true,
   predefinedAnswersEnabled: false,
   predefinedAnswers: [],
+  showPositiveAnswersForPromoters: false,
+  showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
 };
 
@@ -35,6 +39,8 @@ const DEFAULT_OTHER_CONFIG = {
   freeTextEnabled: true,
   predefinedAnswersEnabled: false,
   predefinedAnswers: [],
+  showPositiveAnswersForPromoters: false,
+  showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
 };
 
@@ -74,6 +80,10 @@ function createDemoChain() {
   };
 }
 
+function migrateAnswers(answers) {
+  return (answers || []).map((a) => (typeof a === 'string' ? { text: a, polarity: null } : a));
+}
+
 function migrateChain(c) {
   const oldDeptTypeMap = {};
   (c.departments || []).forEach((d) => { if (d.type) oldDeptTypeMap[d.id] = d.type; });
@@ -84,13 +94,21 @@ function migrateChain(c) {
     id: d.id, name: d.name, uniqueCode: d.uniqueCode || '', order: typeof d.order === 'number' ? d.order : i,
   }));
   const physicalConfig = { ...DEFAULT_PHYSICAL_CONFIG, ...(c.physicalConfig || {}) };
+  physicalConfig.predefinedAnswers = migrateAnswers(physicalConfig.predefinedAnswers);
   const onlineConfig = { ...DEFAULT_ONLINE_CONFIG, ...(c.onlineConfig || {}) };
+  onlineConfig.predefinedAnswers = migrateAnswers(onlineConfig.predefinedAnswers);
   const otherConfig = { ...DEFAULT_OTHER_CONFIG, ...(c.otherConfig || {}) };
+  otherConfig.predefinedAnswers = migrateAnswers(otherConfig.predefinedAnswers);
+  // Migrate predefinedAnswers in touchpoint configOverrides
+  const migratedTouchpoints = touchpoints.map((t) => {
+    if (!t.configOverride) return t;
+    return { ...t, configOverride: { ...t.configOverride, predefinedAnswers: migrateAnswers(t.configOverride.predefinedAnswers) } };
+  });
   return {
     customLogo: null, activeTouchpointId: null,
     ...c,
     physicalConfig, onlineConfig, otherConfig,
-    departments, touchpoints,
+    departments, touchpoints: migratedTouchpoints,
   };
 }
 
