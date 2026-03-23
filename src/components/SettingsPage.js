@@ -418,6 +418,8 @@ function LogoCropperModal({ imageSrc, onSave, onCancel }) {
     </div>
   );
 }
+
+function TouchpointLinks({ tp }) {
   const [copiedKey, setCopiedKey] = useState(null);
   const url = getTouchpointUrl(tp.id);
   const embedCode = `<iframe src="${url}" width="100%" height="650" frameborder="0" style="border:none;"></iframe>`;
