@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
   getChains, getActiveChainId, setActiveChainId,
-  addChain, updateChain, deleteChain, reorderChains,
-  addDepartment, updateDepartment, deleteDepartment, reorderDepartments,
+  addChain, updateChain, deleteChain,
+  addDepartment, deleteDepartment,
   applyConfigToType, migrateTouchpointsFromDept,
   addTouchpoint, updateTouchpoint, deleteTouchpoint, setActiveTouchpoint,
-  getTouchpointUrl, getDefaultConfig, getEffectiveConfig,
+  getDefaultConfig, getEffectiveConfig,
   DEMO_CHAIN_ID, TYPE_LABELS, MODE_LABELS,
 } from '../utils/settings';
 import { resetChainResponses, resetTouchpointResponses } from '../utils/storage';
