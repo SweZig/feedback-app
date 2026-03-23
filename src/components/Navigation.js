@@ -1,7 +1,7 @@
 import defaultLogo from '../logo.png';
 import './Navigation.css';
 
-function Navigation({ currentPage, onNavigate, activeCustomer, user, onSignOut }) {
+function Navigation({ currentPage, onNavigate, activeCustomer, user, onSignOut, canSettings, canAdmin }) {
   const logoSrc = activeCustomer?.customLogo || defaultLogo;
 
   return (
@@ -21,18 +21,22 @@ function Navigation({ currentPage, onNavigate, activeCustomer, user, onSignOut }
           >
             Rapport
           </button>
-          <button
-            className={`nav-btn ${currentPage === 'settings' ? 'nav-btn--active' : ''}`}
-            onClick={() => onNavigate('settings')}
-          >
-            Inställningar
-          </button>
-          <button
-            className={`nav-btn ${currentPage === 'admin' ? 'nav-btn--active' : ''}`}
-            onClick={() => onNavigate('admin')}
-          >
-            Användare
-          </button>
+          {canSettings !== false && (
+            <button
+              className={`nav-btn ${currentPage === 'settings' ? 'nav-btn--active' : ''}`}
+              onClick={() => onNavigate('settings')}
+            >
+              Inställningar
+            </button>
+          )}
+          {canAdmin !== false && (
+            <button
+              className={`nav-btn ${currentPage === 'admin' ? 'nav-btn--active' : ''}`}
+              onClick={() => onNavigate('admin')}
+            >
+              Användare
+            </button>
+          )}
         </div>
         <div className="nav-user">
           {user?.email && <span className="nav-user-email">{user.email}</span>}

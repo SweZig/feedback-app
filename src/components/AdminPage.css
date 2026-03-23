@@ -1,12 +1,12 @@
 /* src/components/AdminPage.css */
 
 .admin-page {
-  max-width: 720px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 2rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 .admin-header {
@@ -31,10 +31,38 @@
   font-weight: 600;
 }
 
-.role-badge--owner     { background: #1e3a4f; color: #fff; }
-.role-badge--admin     { background: #2c7be5; color: #fff; }
-.role-badge--manager   { background: #00b8a9; color: #fff; }
+.role-badge--owner      { background: #1e3a4f; color: #fff; }
+.role-badge--admin      { background: #2c7be5; color: #fff; }
+.role-badge--manager    { background: #00b8a9; color: #fff; }
 .role-badge--analytiker { background: #e2eaf0; color: #1e3a4f; }
+
+/* ── Flikar ── */
+.admin-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid #e2eaf0;
+  padding-bottom: 0;
+}
+
+.admin-tab {
+  background: none;
+  border: none;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #7a9aaa;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s;
+}
+
+.admin-tab:hover { color: #1e3a4f; }
+
+.admin-tab--active {
+  color: #1e3a4f;
+  border-bottom-color: #1e3a4f;
+}
 
 /* ── Org-väljare ── */
 .admin-org-selector {
@@ -159,6 +187,8 @@
 }
 .admin-btn--icon:hover { background: #fef2f2; color: #e74c3c; }
 
+.admin-btn--sm { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+
 /* ── Användarlista ── */
 .admin-users-section {
   display: flex;
@@ -184,10 +214,7 @@
   flex-wrap: wrap;
 }
 
-.admin-user-card--me {
-  border-color: #1e3a4f;
-  background: #f7fafc;
-}
+.admin-user-card--me { border-color: #1e3a4f; background: #f7fafc; }
 
 .admin-user-info {
   display: flex;
@@ -196,38 +223,168 @@
   min-width: 0;
 }
 
-.admin-user-email {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1e3a4f;
-}
-
-.admin-user-name {
-  font-size: 0.8rem;
-  color: #5a7a8a;
-}
-
-.admin-user-you {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 700;
-  background: #1e3a4f;
-  color: #fff;
-  border-radius: 99px;
-  padding: 0.1rem 0.5rem;
-  width: fit-content;
-}
-
-.admin-user-login {
-  font-size: 0.75rem;
-  color: #a0b4bf;
-}
+.admin-user-email  { font-size: 0.9rem; font-weight: 600; color: #1e3a4f; }
+.admin-user-name   { font-size: 0.8rem; color: #5a7a8a; }
+.admin-user-you    { display: inline-block; font-size: 0.7rem; font-weight: 700; background: #1e3a4f; color: #fff; border-radius: 99px; padding: 0.1rem 0.5rem; width: fit-content; }
+.admin-user-login  { font-size: 0.75rem; color: #a0b4bf; }
 
 .admin-user-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+}
+
+/* ── Åtkomstmatris ── */
+.admin-perms {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-perms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-perms-desc {
+  font-size: 0.85rem;
+  color: #5a7a8a;
+  margin: 0;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.admin-perms-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.admin-perms-table-wrap {
+  overflow-x: auto;
+  border: 1.5px solid #e2eaf0;
+  border-radius: 10px;
+}
+
+.admin-perms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-perms-th-feature {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  background: #f7fafc;
+  border-bottom: 2px solid #e2eaf0;
+  min-width: 220px;
+}
+
+.admin-perms-th-role {
+  text-align: center;
+  padding: 0.75rem 1rem;
+  background: #f7fafc;
+  border-bottom: 2px solid #e2eaf0;
+  white-space: nowrap;
+}
+
+.admin-perms-group-row { background: #f0f4f7; }
+
+.admin-perms-group-label {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7a9aaa;
+}
+
+.admin-perms-row:hover { background: #f7fafc; }
+
+.admin-perms-row + .admin-perms-row td { border-top: 1px solid #f0f4f7; }
+
+.admin-perms-feature {
+  padding: 0.6rem 1rem;
+  color: #1e3a4f;
+}
+
+.admin-perms-cell {
+  text-align: center;
+  padding: 0.6rem;
+}
+
+.admin-perms-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #1e3a4f;
+}
+
+.admin-perms-checkbox:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Rollsimulering ── */
+.admin-simulator {
+  background: #fff;
+  border: 1.5px solid #e2eaf0;
+  border-radius: 10px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-sim-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-sim-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #f7fafc;
+  border: 1.5px solid #e2eaf0;
+  border-radius: 8px;
+  padding: 0.875rem 1rem;
+  font-size: 0.9rem;
+  color: #1e3a4f;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-align: left;
+}
+
+.admin-sim-btn:hover {
+  background: #e8f0f5;
+  border-color: #1e3a4f;
+}
+
+.admin-sim-active {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-sim-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff8e1;
+  border: 1.5px solid #ffe082;
+  border-radius: 8px;
+  padding: 0.875rem 1rem;
+  font-size: 0.9rem;
+  color: #7a5a00;
+  gap: 1rem;
 }
 
 /* ── Dialog ── */
@@ -259,10 +416,7 @@
   line-height: 1.5;
 }
 
-.admin-dialog-btns {
-  display: flex;
-  gap: 0.75rem;
-}
+.admin-dialog-btns { display: flex; gap: 0.75rem; }
 
 /* ── Felmeddelande ── */
 .admin-error-banner {
@@ -278,9 +432,4 @@
 }
 
 .admin-error-close { font-weight: 700; }
-
-.admin-empty {
-  color: #7a9aaa;
-  font-size: 0.9rem;
-  margin: 0;
-}
+.admin-empty { color: #7a9aaa; font-size: 0.9rem; margin: 0; }
