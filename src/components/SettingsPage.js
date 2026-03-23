@@ -300,7 +300,7 @@ function LogoCropperModal({ imageSrc, onSave, onCancel }) {
     setImgLoaded(true);
   }
 
-  function clampCrop(c) {
+  const clampCrop = React.useCallback((c) => {
     const minW = 20; const minH = 20;
     let { x, y, w, h } = c;
     if (w < minW) w = minW;
@@ -310,7 +310,7 @@ function LogoCropperModal({ imageSrc, onSave, onCancel }) {
     if (x + w > imgRect.x + imgRect.w) w = imgRect.x + imgRect.w - x;
     if (y + h > imgRect.y + imgRect.h) h = imgRect.y + imgRect.h - y;
     return { x, y, w, h };
-  }
+  }, [imgRect]);
 
   function onMouseDown(e, handle) {
     e.preventDefault();
