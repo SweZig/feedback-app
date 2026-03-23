@@ -34,21 +34,13 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    // Skapa rad i users-tabellen om den inte finns
+    // Skapa rad i users-tabellen
     await supabaseAdmin
       .from('users')
       .upsert({ id: data.user.id, email }, { onConflict: 'id' });
 
-    // Skapa org_members-rad
-    const { error: memberError } = await supabaseAdmin
-      .from('org_members')
-      .upsert({
-        organization_id: organizationId,
-        user_id:         data.user.id,
-        role,
-      }, { onConflict: 'organization_id,user_id' });
-
-    if (memberError) throw memberError;
+    // org_members skapas INTE här — görs i LoginPage efter att användaren satt lösenord
+    // (annars bryts foreign key constraint eftersom auth-användaren inte är bekräftad än)
 
     return res.status(200).json({ success: true, userId: data.user.id });
   } catch (err) {

@@ -6,13 +6,13 @@ import './LoginPage.css';
 const FA_LOGO = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
 
 function LoginPage() {
-  const [email, setEmail]           = useState('');
-  const [password, setPassword]     = useState('');
-  const [newPassword, setNewPassword] = useState('');
+  const [email, setEmail]                 = useState('');
+  const [password, setPassword]           = useState('');
+  const [newPassword, setNewPassword]     = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError]           = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [mode, setMode]             = useState('login'); // 'login' | 'set-password'
+  const [error, setError]                 = useState('');
+  const [loading, setLoading]             = useState(false);
+  const [mode, setMode]                   = useState('login'); // 'login' | 'set-password'
 
   useEffect(() => {
     // Supabase skickar token i URL-hashen vid invite/recovery
@@ -28,6 +28,7 @@ function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
+      // onAuthStateChange i App.js hanterar resten
     } catch (err) {
       setError(getFriendlyError(err.message));
     } finally {
@@ -52,13 +53,33 @@ function LoginPage() {
     try {
       const { supabase } = await import('../utils/supabaseClient');
 
-      // Supabase JS har redan plockat upp token från hash — uppdatera lösenord
+      // Sätt lösenordet — Supabase JS har redan plockat upp token från URL-hashen
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
       if (updateError) throw updateError;
+
+      // Hämta metadata som sattes vid invite
+      const { data: { user } } = await supabase.auth.getUser();
+      const organizationId = user?.user_metadata?.organization_id;
+      const role           = user?.user_metadata?.role;
+
+      // Skapa org_members-rad nu när användaren är bekräftad
+      if (organizationId && role) {
+        const { error: memberError } = await supabase
+          .from('org_members')
+          .upsert({
+            organization_id: organizationId,
+            user_id:         user.id,
+            role,
+          }, { onConflict: 'organization_id,user_id' });
+
+        if (memberError) throw memberError;
+      }
+
       // onAuthStateChange i App.js tar över härifrån
+
     } catch (err) {
       setError(getFriendlyError(err.message));
     } finally {
