@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import ScoreSelector from './ScoreSelector';
-import { addResponse } from '../utils/storage';
+import { saveResponse } from '../utils/storageAdapter';
 import { TYPE_LABELS, MODE_LABELS, getEffectiveConfig } from '../utils/settings';
 import './SurveyPage.css';
 
@@ -10,6 +10,8 @@ const FA_LOGO = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
 const FOLLOW_UP_THRESHOLD = 2; // scores 0, 1, 2 trigger follow-up
 
 function SurveyPage({ activeCustomer }) {
+  console.log('[DEBUG] SurveyPage renderas, activeCustomer:', activeCustomer?.id, activeCustomer?.activeTouchpointId);
+
   const [score, setScore] = useState(null);
   const [comment, setComment] = useState('');
   const [predefinedAnswer, setPredefinedAnswer] = useState('');
@@ -23,6 +25,8 @@ function SurveyPage({ activeCustomer }) {
   const activeDept = activeTp
     ? (activeCustomer?.departments || []).find((d) => d.id === activeTp.departmentId) || null
     : null;
+
+  console.log('[DEBUG] activeTpId:', activeTpId, 'activeTp:', activeTp?.name);
 
   const config = getEffectiveConfig(activeCustomer, activeTpId);
   const {
@@ -46,7 +50,7 @@ function SurveyPage({ activeCustomer }) {
     : normalizedAnswers.filter((a) => {
         if (a.polarity === 'positive') return showPositiveAnswersForPromoters && score >= 9;
         if (a.polarity === 'negative') return showNegativeAnswersForDetractors && score <= 3;
-        return true; // ingen polarity = visas alltid
+        return true;
       });
 
   const mode = activeTp?.mode || 'app';
@@ -69,15 +73,26 @@ function SurveyPage({ activeCustomer }) {
     return () => clearInterval(timerRef.current);
   }, [submitted, countdownSeconds]);
 
-  function submit(s, c, pa, email) {
-    addResponse(s, c, activeCustomer?.id, pa, activeTpId, email);
+  async function submit(s, c, pa) {
+    console.log('[DEBUG] submit anropas med score:', s);
+    await saveResponse({
+      id:             crypto.randomUUID(),
+      touchpointId:   activeTpId,
+      chainId:        activeTp?.chainId || activeCustomer?.id,
+      score:          s,
+      comment:        c || '',
+      selectedAnswers: pa ? [pa] : [],
+      sessionId:      crypto.randomUUID(),
+      respondedAt:    new Date().toISOString(),
+      metadata:       {},
+    });
     setSubmitted(true);
   }
 
   function handleSubmit(e) {
     e.preventDefault();
     if (score === null) return;
-    submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEnabled ? followUpEmail : '');
+    submit(score, freeTextEnabled ? comment : '', predefinedAnswer);
   }
 
   function TpBadge() {
@@ -124,20 +139,19 @@ function SurveyPage({ activeCustomer }) {
       <ScoreSelector
         value={score}
         onChange={(val) => {
+          console.log('[DEBUG] score vald:', val);
           setScore(val);
-          // Reset follow-up email if score changes to above threshold
           if (val > FOLLOW_UP_THRESHOLD) setFollowUpEmail('');
           const willShowFollowUp = followUpEnabled && val <= FOLLOW_UP_THRESHOLD;
-          // Use same polarity-filtering logic as visibleAnswers/hasFollowUp
           const willVisibleAnswers = normalizedAnswers.filter((a) => {
             if (a.polarity === 'positive') return showPositiveAnswersForPromoters && val >= 9;
             if (a.polarity === 'negative') return showNegativeAnswersForDetractors && val <= 3;
             return true;
           });
           const willHaveFollowUp = freeTextEnabled || (predefinedAnswersEnabled && willVisibleAnswers.length > 0) || willShowFollowUp;
+          console.log('[DEBUG] willHaveFollowUp:', willHaveFollowUp, 'freeTextEnabled:', freeTextEnabled);
           if (!willHaveFollowUp) {
-            addResponse(val, '', activeCustomer?.id, '', activeTpId, '');
-            setSubmitted(true);
+            submit(val, '', '');
           }
         }}
         colorMode={npsColorMode}
