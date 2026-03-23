@@ -376,7 +376,7 @@ export function applyConfigToType(chainId, type) {
   const idx = chains.findIndex((c) => c.id === chainId);
   if (idx === -1) return;
   const chain = chains[idx];
-  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
+  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
   const config = chain[configKey] || getDefaultConfig(type);
   chains[idx].touchpoints = (chain.touchpoints || []).map((t) =>
     t.type === type ? { ...t, configOverride: { ...config } } : t

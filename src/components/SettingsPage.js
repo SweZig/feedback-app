@@ -647,7 +647,7 @@ export default function SettingsPage({ onSettingsChange }) {
 
   function handleConfigChange(type, newConfig) {
     if (!active) return;
-    const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
+    const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
     updateChain(active.id, { [key]: newConfig });
     setChains(getChains()); onSettingsChange();
     const tpCount = (active.touchpoints || []).filter((t) => t.type === type).length;
