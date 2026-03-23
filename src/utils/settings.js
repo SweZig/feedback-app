@@ -59,11 +59,19 @@ const DEFAULT_OTHER_CONFIG = {
   followUpEnabled: false,
 };
 
+const DEFAULT_ENPS_ANSWERS = [
+  { text: 'Problem i gruppen', polarity: 'negative' },
+  { text: 'Problem med en kollega', polarity: 'negative' },
+  { text: 'Problem med ledarskapet', polarity: 'negative' },
+  { text: 'Problem med arbetsmiljön', polarity: 'negative' },
+  { text: 'Schemat kommer inte ut i tid', polarity: 'negative' },
+];
+
 const DEFAULT_ENPS_CONFIG = {
   npsQuestion: 'På en skala från 0–10, hur troligt är det att du skulle rekommendera oss som arbetsgivare till en vän eller kollega?',
   freeTextEnabled: true,
   predefinedAnswersEnabled: false,
-  predefinedAnswers: DEFAULT_PREDEFINED_ANSWERS,
+  predefinedAnswers: DEFAULT_ENPS_ANSWERS,
   showPositiveAnswersForPromoters: false,
   showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
@@ -123,13 +131,23 @@ function migrateChain(c) {
     id: d.id, name: d.name, uniqueCode: d.uniqueCode || '', order: typeof d.order === 'number' ? d.order : i,
   }));
   const physicalConfig = { ...DEFAULT_PHYSICAL_CONFIG, ...(c.physicalConfig || {}) };
-  physicalConfig.predefinedAnswers = migrateAnswers(physicalConfig.predefinedAnswers);
+  if (!physicalConfig.predefinedAnswers?.length) physicalConfig.predefinedAnswers = [...DEFAULT_PREDEFINED_ANSWERS];
+  else physicalConfig.predefinedAnswers = migrateAnswers(physicalConfig.predefinedAnswers);
+  if (!physicalConfig.npsQuestion) physicalConfig.npsQuestion = DEFAULT_NPS_QUESTION;
+
   const onlineConfig = { ...DEFAULT_ONLINE_CONFIG, ...(c.onlineConfig || {}) };
-  onlineConfig.predefinedAnswers = migrateAnswers(onlineConfig.predefinedAnswers);
+  if (!onlineConfig.predefinedAnswers?.length) onlineConfig.predefinedAnswers = [...DEFAULT_PREDEFINED_ANSWERS];
+  else onlineConfig.predefinedAnswers = migrateAnswers(onlineConfig.predefinedAnswers);
+  if (!onlineConfig.npsQuestion) onlineConfig.npsQuestion = DEFAULT_NPS_QUESTION;
+
   const otherConfig = { ...DEFAULT_OTHER_CONFIG, ...(c.otherConfig || {}) };
-  otherConfig.predefinedAnswers = migrateAnswers(otherConfig.predefinedAnswers);
+  if (!otherConfig.predefinedAnswers?.length) otherConfig.predefinedAnswers = [...DEFAULT_PREDEFINED_ANSWERS];
+  else otherConfig.predefinedAnswers = migrateAnswers(otherConfig.predefinedAnswers);
+  if (!otherConfig.npsQuestion) otherConfig.npsQuestion = DEFAULT_NPS_QUESTION;
+
   const enpsConfig = { ...DEFAULT_ENPS_CONFIG, ...(c.enpsConfig || {}) };
-  enpsConfig.predefinedAnswers = migrateAnswers(enpsConfig.predefinedAnswers);
+  if (!enpsConfig.predefinedAnswers?.length) enpsConfig.predefinedAnswers = [...DEFAULT_ENPS_ANSWERS];
+  else enpsConfig.predefinedAnswers = migrateAnswers(enpsConfig.predefinedAnswers);
   // Migrate predefinedAnswers in touchpoint configOverrides
   const migratedTouchpoints = touchpoints.map((t) => {
     if (!t.configOverride) return t;
@@ -350,7 +368,7 @@ export function applyConfigToType(chainId, type) {
   const idx = chains.findIndex((c) => c.id === chainId);
   if (idx === -1) return;
   const chain = chains[idx];
-  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
+  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
   const config = chain[configKey] || getDefaultConfig(type);
   chains[idx].touchpoints = (chain.touchpoints || []).map((t) =>
     t.type === type ? { ...t, configOverride: { ...config } } : t
