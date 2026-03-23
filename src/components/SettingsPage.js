@@ -108,17 +108,15 @@ function ConfigForm({ config, onChange, type, showCountdown = false }) {
           onChange={(e) => onChange({ ...config, npsQuestion: e.target.value })}
         />
       </div>
-      {type === 'physical' && (
-        <div className="setting-row">
-          <div className="setting-info"><h3>NPS-skalans färger</h3><p>Färgade eller neutrala knappar.</p></div>
-          <div className="setting-toggle-group">
-            <button className={`setting-toggle ${config.npsColorMode === 'colored' ? 'setting-toggle--active' : ''}`}
-              onClick={() => onChange({ ...config, npsColorMode: 'colored' })}>Färg</button>
-            <button className={`setting-toggle ${config.npsColorMode === 'neutral' ? 'setting-toggle--active' : ''}`}
-              onClick={() => onChange({ ...config, npsColorMode: 'neutral' })}>Neutral</button>
-          </div>
+      <div className="setting-row">
+        <div className="setting-info"><h3>NPS-skalans färger</h3><p>Färgade eller neutrala knappar.</p></div>
+        <div className="setting-toggle-group">
+          <button className={`setting-toggle ${config.npsColorMode === 'colored' ? 'setting-toggle--active' : ''}`}
+            onClick={() => onChange({ ...config, npsColorMode: 'colored' })}>Färg</button>
+          <button className={`setting-toggle ${config.npsColorMode === 'neutral' ? 'setting-toggle--active' : ''}`}
+            onClick={() => onChange({ ...config, npsColorMode: 'neutral' })}>Neutral</button>
         </div>
-      )}
+      </div>
       {(type === 'physical' || showCountdown) && (
         <div className="setting-row">
           <div className="setting-info">
@@ -171,17 +169,15 @@ function ConfigForm({ config, onChange, type, showCountdown = false }) {
           </div>
         </>
       )}
-      {type !== 'enps' && (
-        <div className="setting-row">
-          <div className="setting-info">
-            <h3>Uppföljning</h3>
-            <p>Vid betyg 0–2 frågar enkäten om kunden vill bli kontaktad via e-post.</p>
-          </div>
-          <button className={`setting-switch ${config.followUpEnabled ? 'setting-switch--on' : ''}`}
-            onClick={() => onChange({ ...config, followUpEnabled: !config.followUpEnabled })}>
-            <span className="setting-switch-knob" /></button>
+      <div className="setting-row">
+        <div className="setting-info">
+          <h3>Uppföljning</h3>
+          <p>Vid betyg 0–2 frågar enkäten om kunden vill bli kontaktad via e-post.</p>
         </div>
-      )}
+        <button className={`setting-switch ${config.followUpEnabled ? 'setting-switch--on' : ''}`}
+          onClick={() => onChange({ ...config, followUpEnabled: !config.followUpEnabled })}>
+          <span className="setting-switch-knob" /></button>
+      </div>
     </div>
   );
 }
@@ -651,7 +647,7 @@ export default function SettingsPage({ onSettingsChange }) {
 
   function handleConfigChange(type, newConfig) {
     if (!active) return;
-    const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
+    const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
     updateChain(active.id, { [key]: newConfig });
     setChains(getChains()); onSettingsChange();
     const tpCount = (active.touchpoints || []).filter((t) => t.type === type).length;
