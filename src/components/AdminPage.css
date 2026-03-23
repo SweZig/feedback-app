@@ -1,0 +1,286 @@
+/* src/components/AdminPage.css */
+
+.admin-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  margin: 0;
+}
+
+/* ── Roller ── */
+.role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.role-badge--owner     { background: #1e3a4f; color: #fff; }
+.role-badge--admin     { background: #2c7be5; color: #fff; }
+.role-badge--manager   { background: #00b8a9; color: #fff; }
+.role-badge--analytiker { background: #e2eaf0; color: #1e3a4f; }
+
+/* ── Org-väljare ── */
+.admin-org-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.admin-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e3a4f;
+}
+
+/* ── Inbjudningsformulär ── */
+.admin-invite-form {
+  background: #fff;
+  border: 1.5px solid #e2eaf0;
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-user-count {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #7a9aaa;
+}
+
+.admin-form-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.6rem 0.875rem;
+  border: 1.5px solid #c8d6df;
+  border-radius: 7px;
+  font-size: 0.9rem;
+  color: #1e3a4f;
+  background: #f7fafc;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.admin-input:focus { border-color: #1e3a4f; background: #fff; }
+
+.admin-select {
+  padding: 0.6rem 0.75rem;
+  border: 1.5px solid #c8d6df;
+  border-radius: 7px;
+  font-size: 0.9rem;
+  color: #1e3a4f;
+  background: #f7fafc;
+  outline: none;
+  cursor: pointer;
+}
+
+.admin-select--sm {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.admin-msg {
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
+.admin-msg--error   { background: #fef2f2; color: #b91c1c; }
+.admin-msg--success { background: #eafaf1; color: #1a6640; }
+
+/* ── Knappar ── */
+.admin-btn {
+  padding: 0.6rem 1rem;
+  border-radius: 7px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.admin-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.admin-btn--primary { background: #1e3a4f; color: #fff; }
+.admin-btn--primary:hover:not(:disabled) { background: #2c536e; }
+
+.admin-btn--ghost {
+  background: transparent;
+  color: #1e3a4f;
+  border: 1.5px solid #1e3a4f;
+}
+.admin-btn--ghost:hover { background: #f0f4f7; }
+
+.admin-btn--danger { background: #e74c3c; color: #fff; }
+.admin-btn--danger:hover { background: #c0392b; }
+
+.admin-btn--icon {
+  background: transparent;
+  color: #7a9aaa;
+  border: none;
+  font-size: 1.2rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+.admin-btn--icon:hover { background: #fef2f2; color: #e74c3c; }
+
+/* ── Användarlista ── */
+.admin-users-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-user-card {
+  background: #fff;
+  border: 1.5px solid #e2eaf0;
+  border-radius: 9px;
+  padding: 0.875rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-user-card--me {
+  border-color: #1e3a4f;
+  background: #f7fafc;
+}
+
+.admin-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.admin-user-email {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e3a4f;
+}
+
+.admin-user-name {
+  font-size: 0.8rem;
+  color: #5a7a8a;
+}
+
+.admin-user-you {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: #1e3a4f;
+  color: #fff;
+  border-radius: 99px;
+  padding: 0.1rem 0.5rem;
+  width: fit-content;
+}
+
+.admin-user-login {
+  font-size: 0.75rem;
+  color: #a0b4bf;
+}
+
+.admin-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ── Dialog ── */
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.admin-dialog {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-dialog-msg {
+  font-size: 1rem;
+  color: #1e3a4f;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.admin-dialog-btns {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* ── Felmeddelande ── */
+.admin-error-banner {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+}
+
+.admin-error-close { font-weight: 700; }
+
+.admin-empty {
+  color: #7a9aaa;
+  font-size: 0.9rem;
+  margin: 0;
+}

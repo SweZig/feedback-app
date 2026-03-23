@@ -1,7 +1,7 @@
 import defaultLogo from '../logo.png';
 import './Navigation.css';
 
-function Navigation({ currentPage, onNavigate, activeCustomer }) {
+function Navigation({ currentPage, onNavigate, activeCustomer, user, onSignOut }) {
   const logoSrc = activeCustomer?.customLogo || defaultLogo;
 
   return (
@@ -27,6 +27,16 @@ function Navigation({ currentPage, onNavigate, activeCustomer }) {
           >
             Inställningar
           </button>
+          <button
+            className={`nav-btn ${currentPage === 'admin' ? 'nav-btn--active' : ''}`}
+            onClick={() => onNavigate('admin')}
+          >
+            Användare
+          </button>
+        </div>
+        <div className="nav-user">
+          {user?.email && <span className="nav-user-email">{user.email}</span>}
+          <button className="nav-signout" onClick={onSignOut}>Logga ut</button>
         </div>
       </div>
     </nav>

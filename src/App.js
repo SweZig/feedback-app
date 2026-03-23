@@ -11,13 +11,14 @@ import Navigation from './components/Navigation';
 import SurveyPage from './components/SurveyPage';
 import ReportPage from './components/ReportPage';
 import SettingsPage from './components/SettingsPage';
+import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
 import './App.css';
 
 function App() {
-  const [page, setPage]           = useState('survey');
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [user, setUser]           = useState(undefined); // undefined = laddar, null = ej inloggad
+  const [page, setPage]               = useState('survey');
+  const [refreshKey, setRefreshKey]   = useState(0);
+  const [user, setUser]               = useState(undefined);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Lyssna på auth-state från Supabase
@@ -53,7 +54,6 @@ function App() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Visa ingenting medan auth-state laddas
   if (authLoading) {
     return (
       <div style={{
@@ -70,7 +70,6 @@ function App() {
     );
   }
 
-  // Visa login om användaren inte är inloggad
   if (!user) {
     return <LoginPage />;
   }
@@ -99,6 +98,9 @@ function App() {
         )}
         {page === 'settings' && (
           <SettingsPage onSettingsChange={handleSettingsChange} />
+        )}
+        {page === 'admin' && (
+          <AdminPage />
         )}
       </main>
     </div>
