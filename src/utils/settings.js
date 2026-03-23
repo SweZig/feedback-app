@@ -296,27 +296,44 @@ export function reorderDepartments(chainId, orderedIds) {
 export function migrateTouchpointsFromDept(chainId, sourceDeptId) {
   const chains = getChains();
   const idx = chains.findIndex((c) => c.id === chainId);
-  if (idx === -1) return { added: 0, skipped: 0 };
+  if (idx === -1) return { added: 0, updated: 0, skipped: 0 };
   const chain = chains[idx];
   const sourceTps = (chain.touchpoints || [])
     .filter((t) => t.departmentId === sourceDeptId)
     .sort((a, b) => a.order - b.order);
-  if (sourceTps.length === 0) return { added: 0, skipped: 0 };
+  if (sourceTps.length === 0) return { added: 0, updated: 0, skipped: 0 };
   const otherDepts = (chain.departments || []).filter((d) => d.id !== sourceDeptId);
-  let added = 0; let skipped = 0;
+  let added = 0; let updated = 0; let skipped = 0;
   let allTps = [...(chain.touchpoints || [])];
   otherDepts.forEach((dept) => {
-    const existingNames = new Set(allTps.filter((t) => t.departmentId === dept.id).map((t) => t.name.toLowerCase()));
     const deptTpCount = allTps.filter((t) => t.departmentId === dept.id).length;
     sourceTps.forEach((srcTp, i) => {
-      if (existingNames.has(srcTp.name.toLowerCase())) { skipped++; return; }
-      allTps.push({ id: crypto.randomUUID(), name: srcTp.name, departmentId: dept.id, type: srcTp.type, mode: srcTp.mode, order: deptTpCount + i, configOverride: null });
-      added++;
+      const existingIdx = allTps.findIndex(
+        (t) => t.departmentId === dept.id && t.name.toLowerCase() === srcTp.name.toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        // Mätpunkten finns — synka type, mode och configOverride från källan
+        const existing = allTps[existingIdx];
+        const hasChanges =
+          existing.type !== srcTp.type ||
+          existing.mode !== srcTp.mode ||
+          JSON.stringify(existing.configOverride) !== JSON.stringify(srcTp.configOverride);
+        if (hasChanges) {
+          allTps[existingIdx] = { ...existing, type: srcTp.type, mode: srcTp.mode, configOverride: srcTp.configOverride ?? null };
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        // Finns inte — skapa ny med källans config
+        allTps.push({ id: crypto.randomUUID(), name: srcTp.name, departmentId: dept.id, type: srcTp.type, mode: srcTp.mode, order: deptTpCount + i, configOverride: srcTp.configOverride ?? null });
+        added++;
+      }
     });
   });
   chains[idx] = { ...chains[idx], touchpoints: allTps };
   saveChains(chains);
-  return { added, skipped };
+  return { added, updated, skipped };
 }
 
 export function addTouchpoint(chainId, name, departmentId, type = 'physical') {

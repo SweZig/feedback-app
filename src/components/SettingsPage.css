@@ -234,3 +234,10 @@
   font-weight: 600;
   margin-bottom: 1rem;
 }
+
+.migrate-btn-hint {
+  font-size: 0.78rem;
+  color: var(--color-text-light);
+  margin: 0.35rem 0 0;
+  font-style: italic;
+}

@@ -676,8 +676,8 @@ export default function SettingsPage({ onSettingsChange }) {
       {confirmReset && <ResetDialog label={confirmReset.label} onConfirm={executeReset} onCancel={() => setConfirmReset(null)} />}
       {confirmMigrate && (
         <ConfirmDialog
-          message={`Migrera mätpunkter från "${confirmMigrate.deptName}" till alla ${confirmMigrate.otherCount} övriga avdelningar?`}
-          detail={`Kopierar: ${confirmMigrate.tpNames.join(', ')}. Avdelningar som redan har samma namn hoppas över.`}
+          message={`Synka mätpunkter från "${confirmMigrate.deptName}" till alla ${confirmMigrate.otherCount} övriga avdelningar?`}
+          detail={`Synkar typ, läge och individuella inställningar för: ${confirmMigrate.tpNames.join(', ')}. Befintliga mätpunkter uppdateras — nya skapas om de saknas.`}
           onConfirm={executeMigrate} onCancel={() => setConfirmMigrate(null)} />
       )}
       {confirmApplyToAll && (
@@ -789,7 +789,7 @@ export default function SettingsPage({ onSettingsChange }) {
                 <p className="settings-card-desc">Avdelningar är containers för mätpunkter. Unikt ID auto-genereras om inget anges. Dubbelklicka på namn eller ID för att redigera.</p>
                 {migrateResult && (
                   <div className="migrate-result">
-                    ✓ Migrering klar – {migrateResult.added} mätpunkter skapade{migrateResult.skipped > 0 ? `, ${migrateResult.skipped} hoppades över.` : '.'}
+                    ✓ Synkning klar – {migrateResult.added} mätpunkter skapade, {migrateResult.updated} uppdaterade{migrateResult.skipped > 0 ? `, ${migrateResult.skipped} redan identiska.` : '.'}
                   </div>
                 )}
                 <form className="settings-add-form" onSubmit={handleAddDept}>
@@ -862,8 +862,9 @@ export default function SettingsPage({ onSettingsChange }) {
                                   {otherDeptsCount > 0 && (
                                     <div className="migrate-btn-wrap">
                                       <button className="settings-btn settings-btn--migrate" onClick={() => handleMigrateClick(d, deptTps)}>
-                                        ⇄ Migrera till alla {otherDeptsCount} övriga avdelningar
+                                        ⇄ Synka till alla {otherDeptsCount} övriga avdelningar
                                       </button>
+                                      <p className="migrate-btn-hint">Kopierar typ, läge och individuella inställningar (configOverride). Kedjans standardkonfiguration synkas via Konfiguration-fliken.</p>
                                     </div>
                                   )}
                                 </>
