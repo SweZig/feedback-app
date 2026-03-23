@@ -358,9 +358,10 @@ function SettingsPage({ onSettingsChange }) {
 
   return (
     <div className="settings-layout">
-      <nav className="settings-nav">
+      <nav className="settings-menu">
+        <p className="settings-menu-label">Inställningar</p>
         {MENU_ITEMS.map((item) => (
-          <button key={item.key} className={`settings-nav-btn ${section === item.key ? 'settings-nav-btn--active' : ''}`}
+          <button key={item.key} className={`settings-menu-item ${section === item.key ? 'settings-menu-item--active' : ''}`}
             onClick={() => setSection(item.key)}>{item.label}</button>
         ))}
       </nav>
