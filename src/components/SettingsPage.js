@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   getChains, getActiveChainId, setActiveChainId,
   addChain, updateChain, deleteChain, reorderChains,
@@ -39,6 +39,7 @@ const TYPE_BADGE = {
   physical: 'dept-badge--physical',
   online: 'dept-badge--online',
   other: 'dept-badge--other',
+  enps: 'dept-badge--enps',
 };
 
 const MENU_ITEMS = [
@@ -95,6 +96,18 @@ function ResetDialog({ label, onConfirm, onCancel }) {
 function ConfigForm({ config, onChange, type, showCountdown = false }) {
   return (
     <div className="config-form">
+      <div className="setting-row setting-row--col">
+        <div className="setting-info">
+          <h3>NPS-fråga</h3>
+          <p>Frågetexten som visas för respondenten i enkäten.</p>
+        </div>
+        <textarea
+          className="settings-input settings-textarea"
+          rows={3}
+          value={config.npsQuestion || ''}
+          onChange={(e) => onChange({ ...config, npsQuestion: e.target.value })}
+        />
+      </div>
       {type === 'physical' && (
         <div className="setting-row">
           <div className="setting-info"><h3>NPS-skalans färger</h3><p>Färgade eller neutrala knappar.</p></div>
@@ -260,7 +273,151 @@ function PredefinedAnswers({ answers, onChange }) {
   );
 }
 
-function TouchpointLinks({ tp }) {
+function LogoCropperModal({ imageSrc, onSave, onCancel }) {
+  const imgRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+  const containerRef = React.useRef(null);
+
+  const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [imgRect, setImgRect] = React.useState({ x: 0, y: 0, w: 0, h: 0 });
+  // Crop box in container-relative px
+  const [crop, setCrop] = React.useState({ x: 20, y: 20, w: 200, h: 100 });
+  const [dragging, setDragging] = React.useState(null); // null | 'move' | corner key
+  const [dragStart, setDragStart] = React.useState(null);
+  const [outputScale, setOutputScale] = React.useState(1);
+
+  function onImgLoad() {
+    const img = imgRef.current;
+    const cont = containerRef.current;
+    if (!img || !cont) return;
+    const cr = cont.getBoundingClientRect();
+    const ir = img.getBoundingClientRect();
+    const rx = ir.left - cr.left;
+    const ry = ir.top - cr.top;
+    setImgRect({ x: rx, y: ry, w: ir.width, h: ir.height });
+    // Default crop = full image
+    setCrop({ x: rx, y: ry, w: ir.width, h: ir.height });
+    setImgLoaded(true);
+  }
+
+  function clampCrop(c) {
+    const minW = 20; const minH = 20;
+    let { x, y, w, h } = c;
+    if (w < minW) w = minW;
+    if (h < minH) h = minH;
+    if (x < imgRect.x) x = imgRect.x;
+    if (y < imgRect.y) y = imgRect.y;
+    if (x + w > imgRect.x + imgRect.w) w = imgRect.x + imgRect.w - x;
+    if (y + h > imgRect.y + imgRect.h) h = imgRect.y + imgRect.h - y;
+    return { x, y, w, h };
+  }
+
+  function onMouseDown(e, handle) {
+    e.preventDefault();
+    setDragging(handle);
+    setDragStart({ mx: e.clientX, my: e.clientY, crop: { ...crop } });
+  }
+
+  React.useEffect(() => {
+    if (!dragging) return;
+    function onMove(e) {
+      const dx = e.clientX - dragStart.mx;
+      const dy = e.clientY - dragStart.my;
+      const prev = dragStart.crop;
+      let next;
+      if (dragging === 'move') {
+        next = clampCrop({ ...prev, x: prev.x + dx, y: prev.y + dy });
+      } else {
+        let { x, y, w, h } = prev;
+        if (dragging.includes('e')) w = prev.w + dx;
+        if (dragging.includes('s')) h = prev.h + dy;
+        if (dragging.includes('w')) { x = prev.x + dx; w = prev.w - dx; }
+        if (dragging.includes('n')) { y = prev.y + dy; h = prev.h - dy; }
+        next = clampCrop({ x, y, w, h });
+      }
+      setCrop(next);
+    }
+    function onUp() { setDragging(null); setDragStart(null); }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  }, [dragging, dragStart, imgRect]);
+
+  function handleSave() {
+    const img = imgRef.current;
+    const canvas = canvasRef.current;
+    if (!img || !canvas) return;
+    // Convert crop (container px) → natural image px
+    const scaleX = img.naturalWidth / imgRect.w;
+    const scaleY = img.naturalHeight / imgRect.h;
+    const sx = (crop.x - imgRect.x) * scaleX;
+    const sy = (crop.y - imgRect.y) * scaleY;
+    const sw = crop.w * scaleX;
+    const sh = crop.h * scaleY;
+    const outW = Math.round(sw * outputScale);
+    const outH = Math.round(sh * outputScale);
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+    onSave(canvas.toDataURL('image/png'));
+  }
+
+  const handles = ['n','s','e','w','nw','ne','sw','se'];
+  const handleStyle = (h) => {
+    const base = { position: 'absolute', width: 10, height: 10, background: '#fff', border: '2px solid #1e3a4f', borderRadius: 2 };
+    const pos = {};
+    if (h.includes('n')) pos.top = -5; else if (h.includes('s')) pos.bottom = -5; else pos.top = '50%';
+    if (h.includes('w')) pos.left = -5; else if (h.includes('e')) pos.right = -5; else pos.left = '50%';
+    const cursors = { n:'ns-resize', s:'ns-resize', e:'ew-resize', w:'ew-resize', nw:'nw-resize', ne:'ne-resize', sw:'sw-resize', se:'se-resize' };
+    return { ...base, ...pos, cursor: cursors[h], transform: (h === 'n' || h === 's') ? 'translateX(-50%)' : (h === 'e' || h === 'w') ? 'translateY(-50%)' : 'none', zIndex: 10 };
+  };
+
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-box" style={{ maxWidth: 640, width: '90vw' }} onClick={(e) => e.stopPropagation()}>
+        <p className="confirm-msg" style={{ marginBottom: '0.5rem' }}>Beskär logotyp</p>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-light)', margin: '0 0 0.75rem' }}>
+          Dra i hörnen eller kanterna för att justera urklippet.
+        </p>
+        {/* Image + crop overlay container */}
+        <div ref={containerRef} style={{ position: 'relative', userSelect: 'none', background: '#f0f4f8', borderRadius: 8, overflow: 'hidden', maxHeight: 340, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.75rem' }}>
+          <img ref={imgRef} src={imageSrc} alt="Logo" onLoad={onImgLoad}
+            style={{ maxWidth: '100%', maxHeight: 320, display: 'block', objectFit: 'contain' }} />
+          {imgLoaded && (
+            <>
+              {/* Dark overlay outside crop */}
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', pointerEvents: 'none' }} />
+              {/* Crop box */}
+              <div
+                style={{ position: 'absolute', left: crop.x, top: crop.y, width: crop.w, height: crop.h,
+                  boxSizing: 'border-box', border: '2px solid #1e3a4f', background: 'transparent',
+                  boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)', cursor: 'move' }}
+                onMouseDown={(e) => onMouseDown(e, 'move')}
+              >
+                {handles.map((h) => (
+                  <div key={h} style={handleStyle(h)} onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, h); }} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        {/* Output scale */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--color-text-light)' }}>
+          <span style={{ whiteSpace: 'nowrap' }}>Storlek på sparad bild:</span>
+          <input type="range" min={0.25} max={2} step={0.25} value={outputScale}
+            onChange={(e) => setOutputScale(Number(e.target.value))} style={{ flex: 1 }} />
+          <span style={{ whiteSpace: 'nowrap', minWidth: 40 }}>{Math.round(crop.w * outputScale)} × {Math.round(crop.h * outputScale)} px</span>
+        </div>
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
+        <div className="confirm-btns">
+          <button className="settings-btn settings-btn--primary" onClick={handleSave}>Spara urklipp</button>
+          <button className="settings-btn settings-btn--ghost" onClick={onCancel}>Avbryt</button>
+        </div>
+      </div>
+    </div>
+  );
+}
   const [copiedKey, setCopiedKey] = useState(null);
   const url = getTouchpointUrl(tp.id);
   const embedCode = `<iframe src="${url}" width="100%" height="650" frameborder="0" style="border:none;"></iframe>`;
@@ -390,6 +547,8 @@ export default function SettingsPage({ onSettingsChange }) {
   const [parsedBackup, setParsedBackup] = useState(null);
   const [selectedImportIds, setSelectedImportIds] = useState([]);
   const [importStatus, setImportStatus] = useState(null);
+
+  const [cropperSrc, setCropperSrc] = React.useState(null);
 
   function refresh() {
     const updated = getChains();
@@ -591,7 +750,18 @@ export default function SettingsPage({ onSettingsChange }) {
                 {active.customLogo ? (
                   <div className="setting-logo-preview">
                     <img src={active.customLogo} alt="Logo" />
-                    <button className="settings-btn settings-btn--danger" onClick={() => { updateChain(active.id, { customLogo: null }); refresh(); }}>Ta bort logo</button>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <label className="settings-upload">
+                        <span className="settings-btn settings-btn--ghost">Byt logotyp...</span>
+                        <input type="file" accept="image/*" hidden onChange={(e) => {
+                          const file = e.target.files[0]; if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => setCropperSrc(reader.result);
+                          reader.readAsDataURL(file);
+                        }} />
+                      </label>
+                      <button className="settings-btn settings-btn--danger" onClick={() => { updateChain(active.id, { customLogo: null }); refresh(); }}>Ta bort logo</button>
+                    </div>
                   </div>
                 ) : (
                   <label className="settings-upload">
@@ -599,10 +769,17 @@ export default function SettingsPage({ onSettingsChange }) {
                     <input type="file" accept="image/*" hidden onChange={(e) => {
                       const file = e.target.files[0]; if (!file) return;
                       const reader = new FileReader();
-                      reader.onload = () => { updateChain(active.id, { customLogo: reader.result }); refresh(); };
+                      reader.onload = () => setCropperSrc(reader.result);
                       reader.readAsDataURL(file);
                     }} />
                   </label>
+                )}
+                {cropperSrc && (
+                  <LogoCropperModal
+                    imageSrc={cropperSrc}
+                    onSave={(dataUrl) => { updateChain(active.id, { customLogo: dataUrl }); setCropperSrc(null); refresh(); }}
+                    onCancel={() => setCropperSrc(null)}
+                  />
                 )}
               </div>
             )}
@@ -705,6 +882,7 @@ export default function SettingsPage({ onSettingsChange }) {
                                   <option value="physical">Fysisk plats</option>
                                   <option value="online">Online</option>
                                   <option value="other">Övriga</option>
+                                  <option value="enps">eNPS</option>
                                 </select>
                                 <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
                               </form>
@@ -727,14 +905,14 @@ export default function SettingsPage({ onSettingsChange }) {
               <>
                 <p className="settings-card-desc">Standardinställningar per typ. Nya mätpunkter ärver dessa automatiskt.</p>
                 <div className="config-tabs">
-                  {['physical', 'online', 'other'].map((type) => (
+                  {['physical', 'online', 'other', 'enps'].map((type) => (
                     <button key={type} className={`config-tab ${configTab === type ? 'config-tab--active' : ''}`}
                       onClick={() => setConfigTab(type)}>{TYPE_LABELS[type]}</button>
                   ))}
                 </div>
-                {['physical', 'online', 'other'].map((type) => {
+                {['physical', 'online', 'other', 'enps'].map((type) => {
                   if (configTab !== type) return null;
-                  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : 'otherConfig';
+                  const configKey = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
                   const config = active[configKey] || getDefaultConfig(type);
                   const tpCount = touchpoints.filter((t) => t.type === type).length;
                   return (

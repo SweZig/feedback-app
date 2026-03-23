@@ -6,7 +6,19 @@ export const TYPE_LABELS = {
   physical: 'Fysisk plats',
   online: 'Online',
   other: 'Övriga',
+  enps: 'eNPS',
 };
+
+const DEFAULT_NPS_QUESTION = 'På en skala från 0–10, hur troligt är det att du skulle rekommendera oss till vänner och bekanta?';
+
+const DEFAULT_PREDEFINED_ANSWERS = [
+  { text: 'Jag fick dålig service', polarity: 'negative' },
+  { text: 'Butiken gav ett rörigt intryck', polarity: 'negative' },
+  { text: 'Det var för lång väntetid', polarity: 'negative' },
+  { text: 'Jag fick ej hjälp när jag behövde', polarity: 'negative' },
+  { text: 'Jag fann inte produkten jag sökte', polarity: 'negative' },
+  { text: 'Inget av ovanstående', polarity: null },
+];
 
 export const MODE_LABELS = {
   app: 'Enkät',
@@ -17,28 +29,41 @@ export const MODE_LABELS = {
 
 const DEFAULT_PHYSICAL_CONFIG = {
   npsColorMode: 'colored',
+  npsQuestion: DEFAULT_NPS_QUESTION,
   freeTextEnabled: true,
   countdownSeconds: 6,
   predefinedAnswersEnabled: false,
-  predefinedAnswers: [],
+  predefinedAnswers: DEFAULT_PREDEFINED_ANSWERS,
   showPositiveAnswersForPromoters: false,
   showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
 };
 
 const DEFAULT_ONLINE_CONFIG = {
+  npsQuestion: DEFAULT_NPS_QUESTION,
   freeTextEnabled: true,
   predefinedAnswersEnabled: false,
-  predefinedAnswers: [],
+  predefinedAnswers: DEFAULT_PREDEFINED_ANSWERS,
   showPositiveAnswersForPromoters: false,
   showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
 };
 
 const DEFAULT_OTHER_CONFIG = {
+  npsQuestion: DEFAULT_NPS_QUESTION,
   freeTextEnabled: true,
   predefinedAnswersEnabled: false,
-  predefinedAnswers: [],
+  predefinedAnswers: DEFAULT_PREDEFINED_ANSWERS,
+  showPositiveAnswersForPromoters: false,
+  showNegativeAnswersForDetractors: false,
+  followUpEnabled: false,
+};
+
+const DEFAULT_ENPS_CONFIG = {
+  npsQuestion: 'På en skala från 0–10, hur troligt är det att du skulle rekommendera oss som arbetsgivare till en vän eller kollega?',
+  freeTextEnabled: true,
+  predefinedAnswersEnabled: false,
+  predefinedAnswers: DEFAULT_PREDEFINED_ANSWERS,
   showPositiveAnswersForPromoters: false,
   showNegativeAnswersForDetractors: false,
   followUpEnabled: false,
@@ -47,6 +72,7 @@ const DEFAULT_OTHER_CONFIG = {
 export function getDefaultConfig(type) {
   if (type === 'physical') return { ...DEFAULT_PHYSICAL_CONFIG };
   if (type === 'online') return { ...DEFAULT_ONLINE_CONFIG };
+  if (type === 'enps') return { ...DEFAULT_ENPS_CONFIG };
   return { ...DEFAULT_OTHER_CONFIG };
 }
 
@@ -61,6 +87,8 @@ export function getEffectiveConfig(chain, touchpointId) {
       ? { ...DEFAULT_PHYSICAL_CONFIG, ...(chain?.physicalConfig || {}) }
       : type === 'online'
       ? { ...DEFAULT_ONLINE_CONFIG, ...(chain?.onlineConfig || {}) }
+      : type === 'enps'
+      ? { ...DEFAULT_ENPS_CONFIG, ...(chain?.enpsConfig || {}) }
       : { ...DEFAULT_OTHER_CONFIG, ...(chain?.otherConfig || {}) };
   // configOverride overrides individual settings on top of chain config
   return { ...chainConfig, ...(tp.configOverride || {}) };
@@ -74,6 +102,7 @@ function createDemoChain() {
     physicalConfig: { ...DEFAULT_PHYSICAL_CONFIG },
     onlineConfig: { ...DEFAULT_ONLINE_CONFIG },
     otherConfig: { ...DEFAULT_OTHER_CONFIG },
+    enpsConfig: { ...DEFAULT_ENPS_CONFIG },
     departments: [],
     touchpoints: [],
     activeTouchpointId: null,
@@ -99,6 +128,8 @@ function migrateChain(c) {
   onlineConfig.predefinedAnswers = migrateAnswers(onlineConfig.predefinedAnswers);
   const otherConfig = { ...DEFAULT_OTHER_CONFIG, ...(c.otherConfig || {}) };
   otherConfig.predefinedAnswers = migrateAnswers(otherConfig.predefinedAnswers);
+  const enpsConfig = { ...DEFAULT_ENPS_CONFIG, ...(c.enpsConfig || {}) };
+  enpsConfig.predefinedAnswers = migrateAnswers(enpsConfig.predefinedAnswers);
   // Migrate predefinedAnswers in touchpoint configOverrides
   const migratedTouchpoints = touchpoints.map((t) => {
     if (!t.configOverride) return t;
@@ -107,7 +138,7 @@ function migrateChain(c) {
   return {
     customLogo: null, activeTouchpointId: null,
     ...c,
-    physicalConfig, onlineConfig, otherConfig,
+    physicalConfig, onlineConfig, otherConfig, enpsConfig,
     departments, touchpoints: migratedTouchpoints,
   };
 }
@@ -156,6 +187,7 @@ export function addChain(name) {
     physicalConfig: { ...DEFAULT_PHYSICAL_CONFIG },
     onlineConfig: { ...DEFAULT_ONLINE_CONFIG },
     otherConfig: { ...DEFAULT_OTHER_CONFIG },
+    enpsConfig: { ...DEFAULT_ENPS_CONFIG },
     departments: [], touchpoints: [], activeTouchpointId: null,
   };
   chains.push(chain);
