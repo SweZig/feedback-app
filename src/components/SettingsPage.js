@@ -341,7 +341,7 @@ function LogoCropperModal({ imageSrc, onSave, onCancel }) {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-  }, [dragging, dragStart, imgRect]);
+  }, [dragging, dragStart, imgRect, clampCrop]);
 
   function handleSave() {
     const img = imgRef.current;
