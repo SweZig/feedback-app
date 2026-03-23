@@ -6,7 +6,7 @@ import {
   setActiveChainId,
   updateChain,
 } from './utils/settings';
-import { onAuthStateChange, signOut, getCurrentUser } from './utils/storageAdapter';
+import { onAuthStateChange, signOut } from './utils/storageAdapter';
 import { RoleProvider, useRole } from './contexts/RoleContext';
 import Navigation from './components/Navigation';
 import SurveyPage from './components/SurveyPage';
