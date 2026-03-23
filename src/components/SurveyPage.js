@@ -7,11 +7,9 @@ import './SurveyPage.css';
 const MEGAFON_LOGO = process.env.PUBLIC_URL + '/Megafon_bla_512px.png';
 const FA_LOGO = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
 
-const FOLLOW_UP_THRESHOLD = 2; // scores 0, 1, 2 trigger follow-up
+const FOLLOW_UP_THRESHOLD = 2;
 
 function SurveyPage({ activeCustomer }) {
-  console.log('[DEBUG] SurveyPage renderas, activeCustomer:', activeCustomer?.id, activeCustomer?.activeTouchpointId);
-
   const [score, setScore] = useState(null);
   const [comment, setComment] = useState('');
   const [predefinedAnswer, setPredefinedAnswer] = useState('');
@@ -26,8 +24,6 @@ function SurveyPage({ activeCustomer }) {
     ? (activeCustomer?.departments || []).find((d) => d.id === activeTp.departmentId) || null
     : null;
 
-  console.log('[DEBUG] activeTpId:', activeTpId, 'activeTp:', activeTp?.name);
-
   const config = getEffectiveConfig(activeCustomer, activeTpId);
   const {
     freeTextEnabled = true,
@@ -40,7 +36,6 @@ function SurveyPage({ activeCustomer }) {
     showNegativeAnswersForDetractors = false,
   } = config;
 
-  // Normalize to objects and filter by polarity + score
   const normalizedAnswers = predefinedAnswers.map((a) =>
     typeof a === 'string' ? { text: a, polarity: null } : a
   );
@@ -74,17 +69,16 @@ function SurveyPage({ activeCustomer }) {
   }, [submitted, countdownSeconds]);
 
   async function submit(s, c, pa) {
-    console.log('[DEBUG] submit anropas med score:', s);
     await saveResponse({
-      id:             crypto.randomUUID(),
-      touchpointId:   activeTpId,
-      chainId:        activeTp?.chainId || activeCustomer?.id,
-      score:          s,
-      comment:        c || '',
+      id:              crypto.randomUUID(),
+      touchpointId:    activeTpId,
+      chainId:         activeTp?.chainId || activeCustomer?.id,
+      score:           s,
+      comment:         c || '',
       selectedAnswers: pa ? [pa] : [],
-      sessionId:      crypto.randomUUID(),
-      respondedAt:    new Date().toISOString(),
-      metadata:       {},
+      sessionId:       crypto.randomUUID(),
+      respondedAt:     new Date().toISOString(),
+      metadata:        {},
     });
     setSubmitted(true);
   }
@@ -139,7 +133,6 @@ function SurveyPage({ activeCustomer }) {
       <ScoreSelector
         value={score}
         onChange={(val) => {
-          console.log('[DEBUG] score vald:', val);
           setScore(val);
           if (val > FOLLOW_UP_THRESHOLD) setFollowUpEmail('');
           const willShowFollowUp = followUpEnabled && val <= FOLLOW_UP_THRESHOLD;
@@ -149,7 +142,6 @@ function SurveyPage({ activeCustomer }) {
             return true;
           });
           const willHaveFollowUp = freeTextEnabled || (predefinedAnswersEnabled && willVisibleAnswers.length > 0) || willShowFollowUp;
-          console.log('[DEBUG] willHaveFollowUp:', willHaveFollowUp, 'freeTextEnabled:', freeTextEnabled);
           if (!willHaveFollowUp) {
             submit(val, '', '');
           }
