@@ -13,12 +13,35 @@ function LoginPage() {
   const [error, setError]                     = useState('');
   const [loading, setLoading]                 = useState(false);
   const [mode, setMode]                       = useState('login'); // 'login' | 'set-password'
+  const [sessionReady, setSessionReady]       = useState(false);
 
   useEffect(() => {
     const authType = sessionStorage.getItem('supabase_auth_type');
-    if (authType === 'invite' || authType === 'recovery') {
-      setMode('set-password');
+    if (authType !== 'invite' && authType !== 'recovery') return;
+
+    setMode('set-password');
+
+    // Vänta på att Supabase automatiskt etablerar sessionen från hash
+    async function waitForSession() {
+      const { supabase } = await import('../utils/supabaseClient');
+
+      // Försök hämta sessionen som Supabase redan borde ha etablerat
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setSessionReady(true);
+        return;
+      }
+
+      // Om sessionen inte finns än — lyssna på auth state change
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (session) {
+          setSessionReady(true);
+          subscription.unsubscribe();
+        }
+      });
     }
+
+    waitForSession();
   }, []);
 
   async function handleSubmit(e) {
@@ -47,27 +70,16 @@ function LoginPage() {
       return;
     }
 
+    if (!sessionReady) {
+      setError('Sessionen är inte redo ännu. Vänta ett ögonblick och försök igen.');
+      return;
+    }
+
     setLoading(true);
     try {
       const { supabase } = await import('../utils/supabaseClient');
 
-      // Hämta sparade tokens från sessionStorage
-      const accessToken  = sessionStorage.getItem('supabase_access_token');
-      const refreshToken = sessionStorage.getItem('supabase_refresh_token');
-
-      if (!accessToken || !refreshToken) {
-        throw new Error('Auth session missing');
-      }
-
-      // Sätt sessionen explicit med tokens från invite-länken
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token:  accessToken,
-        refresh_token: refreshToken,
-      });
-
-      if (sessionError) throw sessionError;
-
-      // Sätt lösenordet
+      // Supabase har redan sessionen — uppdatera lösenordet direkt
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -79,7 +91,7 @@ function LoginPage() {
       const organizationId = user?.user_metadata?.organization_id;
       const role           = user?.user_metadata?.role;
 
-      // Skapa org_members-rad nu när användaren är bekräftad
+      // Skapa org_members-rad
       if (organizationId && role) {
         const { error: memberError } = await supabase
           .from('org_members')
@@ -92,7 +104,7 @@ function LoginPage() {
         if (memberError) throw memberError;
       }
 
-      // Rensa sessionStorage och hash, ladda om utan invite-flöde
+      // Rensa sessionStorage och ladda om
       sessionStorage.removeItem('supabase_auth_type');
       sessionStorage.removeItem('supabase_access_token');
       sessionStorage.removeItem('supabase_refresh_token');
@@ -138,7 +150,7 @@ function LoginPage() {
                 placeholder="Minst 8 tecken"
                 autoComplete="new-password"
                 required
-                disabled={loading}
+                disabled={loading || !sessionReady}
               />
             </label>
 
@@ -152,13 +164,19 @@ function LoginPage() {
                 placeholder="Upprepa lösenordet"
                 autoComplete="new-password"
                 required
-                disabled={loading}
+                disabled={loading || !sessionReady}
               />
             </label>
 
+            {!sessionReady && (
+              <p style={{ fontSize: '0.85rem', color: '#7a9aaa', textAlign: 'center' }}>
+                Verifierar inbjudan...
+              </p>
+            )}
+
             {error && <p className="login-error">{error}</p>}
 
-            <button className="login-btn" type="submit" disabled={loading}>
+            <button className="login-btn" type="submit" disabled={loading || !sessionReady}>
               {loading ? 'Sparar...' : 'Aktivera konto'}
             </button>
           </form>
