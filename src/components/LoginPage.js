@@ -5,6 +5,15 @@ import './LoginPage.css';
 
 const FA_LOGO = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
 
+// Dekoda JWT-payload utan extern lib
+function parseJwt(token) {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch {
+    return null;
+  }
+}
+
 function LoginPage() {
   const [email, setEmail]                     = useState('');
   const [password, setPassword]               = useState('');
@@ -13,7 +22,7 @@ function LoginPage() {
   const [error, setError]                     = useState('');
   const [loading, setLoading]                 = useState(false);
   const [mode, setMode]                       = useState('login'); // 'login' | 'set-password'
-  const [sessionReady, setSessionReady]       = useState(false);
+  const [inviteData, setInviteData]           = useState(null); // { userId, organizationId, role }
 
   useEffect(() => {
     const authType = sessionStorage.getItem('supabase_auth_type');
@@ -21,24 +30,18 @@ function LoginPage() {
 
     setMode('set-password');
 
-    async function waitForSession() {
-      const { supabase } = await import('../utils/supabaseClient');
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setSessionReady(true);
-        return;
+    // Dekoda access_token för att få userId och metadata
+    const accessToken = sessionStorage.getItem('supabase_access_token');
+    if (accessToken) {
+      const payload = parseJwt(accessToken);
+      if (payload) {
+        setInviteData({
+          userId:         payload.sub,
+          organizationId: payload.user_metadata?.organization_id,
+          role:           payload.user_metadata?.role,
+        });
       }
-
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (session) {
-          setSessionReady(true);
-          subscription.unsubscribe();
-        }
-      });
     }
-
-    waitForSession();
   }, []);
 
   async function handleSubmit(e) {
@@ -66,40 +69,27 @@ function LoginPage() {
       setError('Lösenorden matchar inte.');
       return;
     }
-
-    if (!sessionReady) {
-      setError('Sessionen är inte redo ännu. Vänta ett ögonblick och försök igen.');
+    if (!inviteData?.userId || !inviteData?.organizationId || !inviteData?.role) {
+      setError('Sessionen har gått ut. Kontakta administratören för en ny inbjudan.');
       return;
     }
 
     setLoading(true);
     try {
-      const { supabase } = await import('../utils/supabaseClient');
-
-      // Hämta metadata INNAN updateUser (JWT kan ändras efteråt)
-      const { data: { user } } = await supabase.auth.getUser();
-      const organizationId = user?.user_metadata?.organization_id;
-      const role           = user?.user_metadata?.role;
-      const userId         = user?.id;
-
-      // Sätt lösenordet
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
+      // Allt sker server-side — inga sessions-problem på klienten
+      const response = await fetch('/api/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId:         inviteData.userId,
+          password:       newPassword,
+          organizationId: inviteData.organizationId,
+          role:           inviteData.role,
+        }),
       });
 
-      if (updateError) throw updateError;
-
-      // Skapa org_members-rad server-side (undviker RLS-problem)
-      if (userId && organizationId && role) {
-        const response = await fetch('/api/add-org-member', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, organizationId, role }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Kunde inte skapa användarbehörighet');
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Serverfel');
 
       // Rensa sessionStorage och ladda om
       sessionStorage.removeItem('supabase_auth_type');
@@ -147,7 +137,7 @@ function LoginPage() {
                 placeholder="Minst 8 tecken"
                 autoComplete="new-password"
                 required
-                disabled={loading || !sessionReady}
+                disabled={loading}
               />
             </label>
 
@@ -161,19 +151,13 @@ function LoginPage() {
                 placeholder="Upprepa lösenordet"
                 autoComplete="new-password"
                 required
-                disabled={loading || !sessionReady}
+                disabled={loading}
               />
             </label>
 
-            {!sessionReady && (
-              <p style={{ fontSize: '0.85rem', color: '#7a9aaa', textAlign: 'center' }}>
-                Verifierar inbjudan...
-              </p>
-            )}
-
             {error && <p className="login-error">{error}</p>}
 
-            <button className="login-btn" type="submit" disabled={loading || !sessionReady}>
+            <button className="login-btn" type="submit" disabled={loading}>
               {loading ? 'Sparar...' : 'Aktivera konto'}
             </button>
           </form>
