@@ -25,11 +25,16 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Ogiltig roll' });
   }
 
+  // Använd REACT_APP_SITE_URL om den finns, annars Vercel-URL, annars feedbackapp.store
+  const siteUrl =
+    process.env.REACT_APP_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://feedbackapp.store');
+
   try {
     // Skicka inbjudan via Supabase Auth
     const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       data: { organization_id: organizationId, role },
-      redirectTo: `${process.env.REACT_APP_SITE_URL || 'https://feedbackapp.store'}/`,
+      redirectTo: `${siteUrl}/`,
     });
 
     if (error) throw error;
@@ -40,7 +45,6 @@ export default async function handler(req, res) {
       .upsert({ id: data.user.id, email }, { onConflict: 'id' });
 
     // org_members skapas INTE här — görs i LoginPage efter att användaren satt lösenord
-    // (annars bryts foreign key constraint eftersom auth-användaren inte är bekräftad än)
 
     return res.status(200).json({ success: true, userId: data.user.id });
   } catch (err) {
