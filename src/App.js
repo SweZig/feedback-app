@@ -16,6 +16,12 @@ import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
 import './App.css';
 
+// ── Fånga hash INNAN Supabase hinner rensa den ────────────────
+// Supabase JS rensar window.location.hash automatiskt vid sidladdning.
+// Vi måste läsa av den på modulnivå, innan React eller Supabase initieras.
+const INITIAL_HASH = window.location.hash;
+const IS_INVITE_FLOW = INITIAL_HASH.includes('type=invite');
+
 // ── Simulerings-banner ────────────────────────────────────────
 function SimulationBanner() {
   const { simulatedRole, stopSimulation } = useRole();
@@ -127,16 +133,13 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [orgId, setOrgId]             = useState(null);
 
-  // Kolla om det är en invite-länk
-  const isInviteFlow = window.location.hash.includes('type=invite');
-
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange(async (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
 
       // Hämta org_id — men inte om det är invite-flöde (org_members finns inte än)
-      if (currentUser && !isInviteFlow) {
+      if (currentUser && !IS_INVITE_FLOW) {
         try {
           const { supabase } = await import('./utils/supabaseClient');
           const { data } = await supabase
@@ -150,7 +153,7 @@ function App() {
       }
     });
     return () => subscription.unsubscribe();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   if (authLoading) {
     return (
@@ -166,8 +169,8 @@ function App() {
 
   // Visa LoginPage om:
   // 1. Ingen inloggad användare
-  // 2. Invite-flöde (användaren ska sätta lösenord)
-  if (!user || isInviteFlow) return <LoginPage />;
+  // 2. Invite-flöde (IS_INVITE_FLOW fångades på modulnivå innan Supabase rensade hashen)
+  if (!user || IS_INVITE_FLOW) return <LoginPage />;
 
   return (
     <RoleProvider organizationId={orgId}>
