@@ -75,8 +75,6 @@ function AppInner({ user }) {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Om simulering är aktiv och vi är på en sida vi inte har access till
-  // — navigera till survey
   useEffect(() => {
     if (!simulatedRole) return;
     if (page === 'settings' && !can('manage_chains')) setPage('survey');
@@ -129,13 +127,16 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [orgId, setOrgId]             = useState(null);
 
+  // Kolla om det är en invite-länk
+  const isInviteFlow = window.location.hash.includes('type=invite');
+
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange(async (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
 
-      // Hämta organisationsid för RoleProvider
-      if (currentUser) {
+      // Hämta org_id — men inte om det är invite-flöde (org_members finns inte än)
+      if (currentUser && !isInviteFlow) {
         try {
           const { supabase } = await import('./utils/supabaseClient');
           const { data } = await supabase
@@ -149,7 +150,7 @@ function App() {
       }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading) {
     return (
@@ -163,7 +164,10 @@ function App() {
     );
   }
 
-  if (!user) return <LoginPage />;
+  // Visa LoginPage om:
+  // 1. Ingen inloggad användare
+  // 2. Invite-flöde (användaren ska sätta lösenord)
+  if (!user || isInviteFlow) return <LoginPage />;
 
   return (
     <RoleProvider organizationId={orgId}>

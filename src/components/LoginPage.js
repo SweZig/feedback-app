@@ -6,16 +6,15 @@ import './LoginPage.css';
 const FA_LOGO = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
 
 function LoginPage() {
-  const [email, setEmail]                 = useState('');
-  const [password, setPassword]           = useState('');
-  const [newPassword, setNewPassword]     = useState('');
+  const [email, setEmail]                     = useState('');
+  const [password, setPassword]               = useState('');
+  const [newPassword, setNewPassword]         = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError]                 = useState('');
-  const [loading, setLoading]             = useState(false);
-  const [mode, setMode]                   = useState('login'); // 'login' | 'set-password'
+  const [error, setError]                     = useState('');
+  const [loading, setLoading]                 = useState(false);
+  const [mode, setMode]                       = useState('login'); // 'login' | 'set-password'
 
   useEffect(() => {
-    // Supabase skickar token i URL-hashen vid invite/recovery
     const hash = window.location.hash;
     if (hash.includes('type=invite') || hash.includes('type=recovery')) {
       setMode('set-password');
@@ -78,7 +77,11 @@ function LoginPage() {
         if (memberError) throw memberError;
       }
 
-      // onAuthStateChange i App.js tar över härifrån
+      // Rensa hash från URL så invite-flödet inte triggas igen vid reload
+      window.history.replaceState(null, '', window.location.pathname);
+
+      // Ladda om så App.js plockar upp den inloggade användaren normalt
+      window.location.reload();
 
     } catch (err) {
       setError(getFriendlyError(err.message));
