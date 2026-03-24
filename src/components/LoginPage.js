@@ -21,18 +21,15 @@ function LoginPage() {
 
     setMode('set-password');
 
-    // Vänta på att Supabase automatiskt etablerar sessionen från hash
     async function waitForSession() {
       const { supabase } = await import('../utils/supabaseClient');
 
-      // Försök hämta sessionen som Supabase redan borde ha etablerat
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setSessionReady(true);
         return;
       }
 
-      // Om sessionen inte finns än — lyssna på auth state change
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (session) {
           setSessionReady(true);
@@ -79,29 +76,29 @@ function LoginPage() {
     try {
       const { supabase } = await import('../utils/supabaseClient');
 
-      // Supabase har redan sessionen — uppdatera lösenordet direkt
+      // Hämta metadata INNAN updateUser (JWT kan ändras efteråt)
+      const { data: { user } } = await supabase.auth.getUser();
+      const organizationId = user?.user_metadata?.organization_id;
+      const role           = user?.user_metadata?.role;
+      const userId         = user?.id;
+
+      // Sätt lösenordet
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
       if (updateError) throw updateError;
 
-      // Hämta metadata som sattes vid invite
-      const { data: { user } } = await supabase.auth.getUser();
-      const organizationId = user?.user_metadata?.organization_id;
-      const role           = user?.user_metadata?.role;
+      // Skapa org_members-rad server-side (undviker RLS-problem)
+      if (userId && organizationId && role) {
+        const response = await fetch('/api/add-org-member', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, organizationId, role }),
+        });
 
-      // Skapa org_members-rad
-      if (organizationId && role) {
-        const { error: memberError } = await supabase
-          .from('org_members')
-          .upsert({
-            organization_id: organizationId,
-            user_id:         user.id,
-            role,
-          }, { onConflict: 'organization_id,user_id' });
-
-        if (memberError) throw memberError;
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Kunde inte skapa användarbehörighet');
       }
 
       // Rensa sessionStorage och ladda om
