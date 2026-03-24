@@ -1,6 +1,4 @@
 // api/set-password.js
-// Sätter lösenord server-side med service_role — kringgår sessions-problem på klienten
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
@@ -25,11 +23,17 @@ export default async function handler(req, res) {
 
   try {
     // Sätt lösenordet via admin API
-    const { error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    const { data: userData, error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password,
     });
 
     if (passwordError) throw passwordError;
+
+    // Säkerställ att användaren finns i users-tabellen
+    const email = userData?.user?.email;
+    await supabaseAdmin
+      .from('users')
+      .upsert({ id: userId, email }, { onConflict: 'id' });
 
     // Skapa org_members-rad
     const { error: memberError } = await supabaseAdmin
