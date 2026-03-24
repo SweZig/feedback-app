@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   }
 
   const { userId, password, organizationId, role } = req.body;
+  console.log('[set-password] userId:', userId, 'organizationId:', organizationId, 'role:', role);
 
   if (!userId || !password || !organizationId || !role) {
     return res.status(400).json({ error: 'userId, password, organizationId och role krävs' });
