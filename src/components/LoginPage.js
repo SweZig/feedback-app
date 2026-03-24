@@ -15,8 +15,9 @@ function LoginPage() {
   const [mode, setMode]                       = useState('login'); // 'login' | 'set-password'
 
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes('type=invite') || hash.includes('type=recovery')) {
+    // Läs från sessionStorage — satt av inline script i index.html
+    const authType = sessionStorage.getItem('supabase_auth_type');
+    if (authType === 'invite' || authType === 'recovery') {
       setMode('set-password');
     }
   }, []);
@@ -52,7 +53,7 @@ function LoginPage() {
     try {
       const { supabase } = await import('../utils/supabaseClient');
 
-      // Sätt lösenordet — Supabase JS har redan plockat upp token från URL-hashen
+      // Sätt lösenordet — Supabase JS har sessionen från invite-token
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -77,10 +78,9 @@ function LoginPage() {
         if (memberError) throw memberError;
       }
 
-      // Rensa hash från URL så invite-flödet inte triggas igen vid reload
+      // Rensa sessionStorage och hash, ladda om utan invite-flöde
+      sessionStorage.removeItem('supabase_auth_type');
       window.history.replaceState(null, '', window.location.pathname);
-
-      // Ladda om så App.js plockar upp den inloggade användaren normalt
       window.location.reload();
 
     } catch (err) {

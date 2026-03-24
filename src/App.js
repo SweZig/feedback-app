@@ -16,11 +16,9 @@ import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
 import './App.css';
 
-// ── Fånga hash INNAN Supabase hinner rensa den ────────────────
-// Supabase JS rensar window.location.hash automatiskt vid sidladdning.
-// Vi måste läsa av den på modulnivå, innan React eller Supabase initieras.
-const INITIAL_HASH = window.location.hash;
-const IS_INVITE_FLOW = INITIAL_HASH.includes('type=invite');
+// Läs av invite-flaggan från sessionStorage (satt av inline script i index.html
+// innan Supabase JS hann rensa URL-hashen)
+const IS_INVITE_FLOW = sessionStorage.getItem('supabase_auth_type') === 'invite';
 
 // ── Simulerings-banner ────────────────────────────────────────
 function SimulationBanner() {
@@ -167,9 +165,7 @@ function App() {
     );
   }
 
-  // Visa LoginPage om:
-  // 1. Ingen inloggad användare
-  // 2. Invite-flöde (IS_INVITE_FLOW fångades på modulnivå innan Supabase rensade hashen)
+  // Visa LoginPage om ingen inloggad användare, eller om invite-flöde pågår
   if (!user || IS_INVITE_FLOW) return <LoginPage />;
 
   return (
