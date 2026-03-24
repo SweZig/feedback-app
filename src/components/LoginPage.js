@@ -15,7 +15,6 @@ function LoginPage() {
   const [mode, setMode]                       = useState('login'); // 'login' | 'set-password'
 
   useEffect(() => {
-    // Läs från sessionStorage — satt av inline script i index.html
     const authType = sessionStorage.getItem('supabase_auth_type');
     if (authType === 'invite' || authType === 'recovery') {
       setMode('set-password');
@@ -28,7 +27,6 @@ function LoginPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      // onAuthStateChange i App.js hanterar resten
     } catch (err) {
       setError(getFriendlyError(err.message));
     } finally {
@@ -53,7 +51,23 @@ function LoginPage() {
     try {
       const { supabase } = await import('../utils/supabaseClient');
 
-      // Sätt lösenordet — Supabase JS har sessionen från invite-token
+      // Hämta sparade tokens från sessionStorage
+      const accessToken  = sessionStorage.getItem('supabase_access_token');
+      const refreshToken = sessionStorage.getItem('supabase_refresh_token');
+
+      if (!accessToken || !refreshToken) {
+        throw new Error('Auth session missing');
+      }
+
+      // Sätt sessionen explicit med tokens från invite-länken
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token:  accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (sessionError) throw sessionError;
+
+      // Sätt lösenordet
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -80,6 +94,8 @@ function LoginPage() {
 
       // Rensa sessionStorage och hash, ladda om utan invite-flöde
       sessionStorage.removeItem('supabase_auth_type');
+      sessionStorage.removeItem('supabase_access_token');
+      sessionStorage.removeItem('supabase_refresh_token');
       window.history.replaceState(null, '', window.location.pathname);
       window.location.reload();
 
