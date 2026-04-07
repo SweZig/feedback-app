@@ -232,7 +232,7 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  const [responseVersion, setResponseVersion] = useState(0);
 
   const customerId = activeCustomer?.id || null;
 
@@ -240,8 +240,7 @@ export default function ReportPage({ activeCustomer }) {
   // och när aktiv kedja byter — garanterar att alla användares svar visas
   useEffect(() => {
     if (!customerId) return;
-    setHydrated(false);
-    hydrateResponsesFromSupabase(customerId).then(() => setHydrated(true));
+    hydrateResponsesFromSupabase(customerId).then(() => setResponseVersion(v => v + 1));
   }, [customerId]);
   const departments = activeCustomer?.departments || [];
   const touchpoints = activeCustomer?.touchpoints || [];
