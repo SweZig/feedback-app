@@ -660,8 +660,14 @@ export default function SettingsPage({ onSettingsChange }) {
     refresh();
   }
 
-  function handleTpUpdate(tpId, updates) {
-    if (active) { updateTouchpoint(active.id, tpId, updates); const uc=getChains().find(c=>c.id===active.id); const ut=(uc?.touchpoints||[]).find(t=>t.id===tpId); if(ut) syncTouchpointToSupabase(ut,active.id); refresh(); }
+  async function handleTpUpdate(tpId, updates) {
+    if (active) {
+      updateTouchpoint(active.id, tpId, updates);
+      const uc = getChains().find(c => c.id === active.id);
+      const ut = (uc?.touchpoints || []).find(t => t.id === tpId);
+      if (ut) await syncTouchpointToSupabase(ut, active.id);
+      refresh();
+    }
   }
 
   function executeDelete() {
@@ -680,22 +686,19 @@ export default function SettingsPage({ onSettingsChange }) {
     setConfirmReset(null); refresh();
   }
 
-  function handleConfigChange(type, newConfig) {
+  async function handleConfigChange(type, newConfig) {
     if (!active) return;
     const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
     updateChain(active.id, { [key]: newConfig });
     const uc = getChains().find(c => c.id === active.id);
     if (uc) {
-      // Synka kedja-config till Supabase
-      syncChainToSupabase(uc);
-      // Propagera automatiskt till alla matchande touchpoints
-      // så att config_override aldrig åsidosätter kedja-inställningar oavsiktligt
+      // Vänta på att Supabase-skrivningarna är klara innan omladdning
       const affected = (uc.touchpoints || []).filter(t => t.type === type);
-      affected.forEach(tp => syncTouchpointToSupabase({ ...tp, configOverride: newConfig }, active.id));
-      if (affected.length > 0) {
-        // Uppdatera även localStorage för varje touchpoint
-        affected.forEach(tp => updateTouchpoint(active.id, tp.id, { configOverride: newConfig }));
-      }
+      affected.forEach(tp => updateTouchpoint(active.id, tp.id, { configOverride: newConfig }));
+      await Promise.all([
+        syncChainToSupabase(uc),
+        ...affected.map(tp => syncTouchpointToSupabase({ ...tp, configOverride: newConfig }, active.id)),
+      ]);
     }
     setChains(getChains()); onSettingsChange();
   }
