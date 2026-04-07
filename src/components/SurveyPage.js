@@ -41,11 +41,22 @@ function SurveyPage({ activeCustomer }) {
     typeof a === 'string' ? { text: a, polarity: null } : a
   );
 
+  // Neutrala svar (polarity: null) visas bara om minst ett polärt svar
+  // också är synligt för aktuellt betyg — annars hänger de i luften ensamma.
+  const hasAnyPolarityAnswer = normalizedAnswers.some(a => a.polarity !== null);
   const visibleAnswers = (score === null)
     ? normalizedAnswers
     : normalizedAnswers.filter((a) => {
         if (a.polarity === 'positive') return showPositiveAnswersForPromoters && score >= 9;
         if (a.polarity === 'negative') return showNegativeAnswersForDetractors && score <= 3;
+        // Neutral: visa alltid om inga polaritetssvar är definierade,
+        // annars bara om minst ett polärt svar också är synligt
+        if (hasAnyPolarityAnswer) {
+          const anyPolarVisible =
+            (showPositiveAnswersForPromoters && score >= 9 && normalizedAnswers.some(x => x.polarity === 'positive')) ||
+            (showNegativeAnswersForDetractors && score <= 3 && normalizedAnswers.some(x => x.polarity === 'negative'));
+          return anyPolarVisible;
+        }
         return true;
       });
 
@@ -140,6 +151,12 @@ function SurveyPage({ activeCustomer }) {
           const willVisibleAnswers = normalizedAnswers.filter((a) => {
             if (a.polarity === 'positive') return showPositiveAnswersForPromoters && val >= 9;
             if (a.polarity === 'negative') return showNegativeAnswersForDetractors && val <= 3;
+            if (hasAnyPolarityAnswer) {
+              const anyPolarVisible =
+                (showPositiveAnswersForPromoters && val >= 9 && normalizedAnswers.some(x => x.polarity === 'positive')) ||
+                (showNegativeAnswersForDetractors && val <= 3 && normalizedAnswers.some(x => x.polarity === 'negative'));
+              return anyPolarVisible;
+            }
             return true;
           });
           const willHaveFollowUp = freeTextEnabled || (predefinedAnswersEnabled && willVisibleAnswers.length > 0) || willShowFollowUp;
