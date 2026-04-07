@@ -13,6 +13,7 @@ import { parseBackupFile, importSelectedBackup } from '../utils/backup';
 import MigrationTool from './MigrationTool';
 import './SettingsPage.css';
 import { supabase } from '../utils/supabaseClient';
+import { getAssembledCustomers } from '../utils/storageAdapter';
 
 // ── Supabase-synkhjälpare ─────────────────────────────────────
 async function syncChainToSupabase(chain) {
@@ -545,8 +546,9 @@ function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
 
 export default function SettingsPage({ onSettingsChange }) {
   const [section, setSection] = useState('chains');
-  const [chains, setChains] = useState(getChains);
-  const [activeId, setActiveId] = useState(getActiveChainId);
+  const [chains, setChains] = useState([]);
+  const [activeId, setActiveId] = useState(() => getActiveChainId() || '');
+  const [loadingChains, setLoadingChains] = useState(true);
 
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmReset, setConfirmReset] = useState(null);
@@ -582,11 +584,41 @@ export default function SettingsPage({ onSettingsChange }) {
   // Punkt 6: visa migration bara om inte redan gjord
   const migrationDone = !!localStorage.getItem('migrated_at');
 
+  async function loadChainsFromSupabase() {
+    try {
+      setLoadingChains(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setChains(getChains()); return; }
+      const { data: memberships = [] } = await supabase
+        .from('org_members').select('organization_id').eq('user_id', user.id);
+      const orgIds = memberships.map(m => m.organization_id);
+      if (orgIds.length === 0) { setChains(getChains()); return; }
+      const assembled = await getAssembledCustomers(orgIds);
+      // Bevara activeTouchpointId från localStorage per kedja
+      const localChains = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
+      assembled.forEach(c => {
+        const lc = localChains.find(l => l.id === c.id);
+        c.activeTouchpointId = lc?.activeTouchpointId || null;
+      });
+      setChains(assembled);
+      setSelectedExportIds(assembled.map(c => c.id));
+      // Sätt activeId till sparad kedja eller första
+      const savedId = getActiveChainId();
+      const validId = assembled.find(c => c.id === savedId) ? savedId : (assembled[0]?.id || '');
+      setActiveId(validId);
+    } catch (e) {
+      console.error('[SettingsPage] loadChains:', e);
+      setChains(getChains());
+    } finally {
+      setLoadingChains(false);
+    }
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => { loadChainsFromSupabase(); }, []);
+
   function refresh() {
-    const updated = getChains();
-    setChains(updated);
-    setActiveId(getActiveChainId());
-    setSelectedExportIds(updated.map((c) => c.id));
+    loadChainsFromSupabase();
     onSettingsChange();
   }
 
@@ -735,6 +767,10 @@ export default function SettingsPage({ onSettingsChange }) {
     setParsedBackup(null); setSelectedImportIds([]);
     if (ok) refresh();
     setTimeout(() => setImportStatus(null), 3000);
+  }
+
+  if (loadingChains) {
+    return <div style={{ padding: '2rem', color: 'var(--color-text-light)' }}>Laddar inställningar...</div>;
   }
 
   return (
