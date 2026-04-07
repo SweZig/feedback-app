@@ -12,6 +12,46 @@ import { resetChainResponses, resetTouchpointResponses } from '../utils/storage'
 import { parseBackupFile, importSelectedBackup } from '../utils/backup';
 import MigrationTool from './MigrationTool';
 import './SettingsPage.css';
+import { supabase } from '../utils/supabaseClient';
+
+// ── Supabase-synkhjälpare ─────────────────────────────────────
+async function syncChainToSupabase(chain) {
+  try {
+    await supabase.from('chains').upsert({
+      id: chain.id, organization_id: chain.id, name: chain.name,
+      custom_logo: chain.customLogo || null,
+      config: { physicalConfig: chain.physicalConfig, onlineConfig: chain.onlineConfig, otherConfig: chain.otherConfig, enpsConfig: chain.enpsConfig },
+      sort_order: chain.sortOrder || 0, is_active: true,
+    }, { onConflict: 'id' });
+  } catch (e) { console.error('[Settings] syncChain:', e?.message); }
+}
+async function syncDeptToSupabase(dept, chainId) {
+  try {
+    await supabase.from('departments').upsert({ id: dept.id, chain_id: chainId, name: dept.name, sort_order: dept.order || 0 }, { onConflict: 'id' });
+  } catch (e) { console.error('[Settings] syncDept:', e?.message); }
+}
+async function syncTouchpointToSupabase(tp, chainId) {
+  try {
+    await supabase.from('touchpoints').upsert({
+      id: tp.id, chain_id: chainId, department_id: tp.departmentId || null, name: tp.name,
+      sort_order: tp.order || 0, is_active: true, config_override: tp.configOverride || null,
+      type: tp.type || 'physical', mode: tp.mode || 'app',
+    }, { onConflict: 'id' });
+  } catch (e) { console.error('[Settings] syncTp:', e?.message); }
+}
+async function softDeleteChainInSupabase(id) {
+  try { await supabase.from('chains').update({ deleted_at: new Date().toISOString() }).eq('id', id); }
+  catch (e) { console.error('[Settings] deleteChain:', e?.message); }
+}
+async function softDeleteDeptInSupabase(id) {
+  try { await supabase.from('departments').update({ deleted_at: new Date().toISOString() }).eq('id', id); }
+  catch (e) { console.error('[Settings] deleteDept:', e?.message); }
+}
+async function softDeleteTpInSupabase(id) {
+  try { await supabase.from('touchpoints').update({ deleted_at: new Date().toISOString() }).eq('id', id); }
+  catch (e) { console.error('[Settings] deleteTp:', e?.message); }
+}
+
 
 function exportSelectedBackup(selectedIds, chains) {
   const allResponses = JSON.parse(localStorage.getItem('npsResponses') || '[]');
@@ -558,7 +598,8 @@ export default function SettingsPage({ onSettingsChange }) {
   function handleAddChain(e) {
     e.preventDefault();
     if (!newChainName.trim()) return;
-    addChain(newChainName.trim()); setNewChainName(''); refresh();
+    const newChain = addChain(newChainName.trim()); setNewChainName('');
+    (async()=>{ await syncChainToSupabase(newChain); const{data:{user}}=await supabase.auth.getUser(); if(user){ await supabase.from('organizations').upsert({id:newChain.id,name:newChain.name},{onConflict:'id'}); await supabase.from('org_members').upsert({organization_id:newChain.id,user_id:user.id,role:'owner'},{onConflict:'organization_id,user_id'}); } })(); refresh();
   }
 
   function handleChainDrop(targetId) {
@@ -576,6 +617,7 @@ export default function SettingsPage({ onSettingsChange }) {
     const dept = addDepartment(active.id, newDeptName.trim(), code);
     setNewDeptName(''); setNewDeptCode('');
     setExpandedDeptId(dept?.id || null);
+    if (dept) syncDeptToSupabase(dept, active.id);
     refresh();
   }
 
@@ -606,7 +648,8 @@ export default function SettingsPage({ onSettingsChange }) {
     const name = (state.name || '').trim();
     const type = state.type || 'physical';
     if (!name || !active) return;
-    addTouchpoint(active.id, name, deptId, type);
+    const newTp = addTouchpoint(active.id, name, deptId, type);
+    if (newTp) syncTouchpointToSupabase(newTp, active.id);
     setNewTpByDept((prev) => ({ ...prev, [deptId]: { name: '', type: prev[deptId]?.type || 'physical' } }));
     refresh();
   }
@@ -618,15 +661,15 @@ export default function SettingsPage({ onSettingsChange }) {
   }
 
   function handleTpUpdate(tpId, updates) {
-    if (active) { updateTouchpoint(active.id, tpId, updates); refresh(); }
+    if (active) { updateTouchpoint(active.id, tpId, updates); const uc=getChains().find(c=>c.id===active.id); const ut=(uc?.touchpoints||[]).find(t=>t.id===tpId); if(ut) syncTouchpointToSupabase(ut,active.id); refresh(); }
   }
 
   function executeDelete() {
     if (!confirmDelete) return;
     const { type, id } = confirmDelete;
-    if (type === 'chain') deleteChain(id);
-    else if (type === 'dept' && active) deleteDepartment(active.id, id);
-    else if (type === 'tp' && active) deleteTouchpoint(active.id, id);
+    if (type === 'chain') { deleteChain(id); softDeleteChainInSupabase(id); }
+    else if (type === 'dept' && active) { deleteDepartment(active.id, id); softDeleteDeptInSupabase(id); }
+    else if (type === 'tp' && active) { deleteTouchpoint(active.id, id); softDeleteTpInSupabase(id); }
     setConfirmDelete(null); refresh();
   }
 
@@ -640,7 +683,7 @@ export default function SettingsPage({ onSettingsChange }) {
   function handleConfigChange(type, newConfig) {
     if (!active) return;
     const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
-    updateChain(active.id, { [key]: newConfig });
+    updateChain(active.id, { [key]: newConfig }); const uc=getChains().find(c=>c.id===active.id); if(uc) syncChainToSupabase(uc);
     setChains(getChains()); onSettingsChange();
     const tpCount = (active.touchpoints || []).filter((t) => t.type === type).length;
     if (tpCount > 0) setConfirmApplyToAll({ type, newConfig, tpCount });
@@ -648,7 +691,7 @@ export default function SettingsPage({ onSettingsChange }) {
 
   function handleApplyToAll(type) {
     if (!active) return;
-    applyConfigToType(active.id, type);
+    applyConfigToType(active.id, type); const uc=getChains().find(c=>c.id===active.id); if(uc)(uc.touchpoints||[]).filter(t=>t.type===type).forEach(t=>syncTouchpointToSupabase(t,active.id));
     setChains(getChains()); onSettingsChange();
   }
 
@@ -754,7 +797,7 @@ export default function SettingsPage({ onSettingsChange }) {
                           reader.readAsDataURL(file);
                         }} />
                       </label>
-                      <button className="settings-btn settings-btn--danger" onClick={() => { updateChain(active.id, { customLogo: null }); refresh(); }}>Ta bort logo</button>
+                      <button className="settings-btn settings-btn--danger" onClick={() => { updateChain(active.id, { customLogo: null }); const uc=getChains().find(c=>c.id===active.id); if(uc) syncChainToSupabase(uc); refresh(); }}>Ta bort logo</button>
                     </div>
                   </div>
                 ) : (
@@ -771,7 +814,7 @@ export default function SettingsPage({ onSettingsChange }) {
                 {cropperSrc && (
                   <LogoCropperModal
                     imageSrc={cropperSrc}
-                    onSave={(dataUrl) => { updateChain(active.id, { customLogo: dataUrl }); setCropperSrc(null); refresh(); }}
+                    onSave={(dataUrl) => { updateChain(active.id, { customLogo: dataUrl }); const uc=getChains().find(c=>c.id===active.id); if(uc) syncChainToSupabase(uc); setCropperSrc(null); refresh(); }}
                     onCancel={() => setCropperSrc(null)}
                   />
                 )}
