@@ -159,9 +159,6 @@ export default function KioskPage({ accessToken }) {
       });
 
   const showFollowUp = followUpEnabled && score !== null && score <= FOLLOW_UP_THRESHOLD;
-  const hasFollowUp  = freeTextEnabled ||
-                       (predefinedAnswersEnabled && visibleAnswers.length > 0) ||
-                       showFollowUp;
   const needsSubmitButton = freeTextEnabled || showFollowUp;
 
   useEffect(() => {

@@ -62,7 +62,6 @@ function SurveyPage({ activeCustomer }) {
 
   const mode = activeTp?.mode || 'app';
   const showFollowUp = followUpEnabled && score !== null && score <= FOLLOW_UP_THRESHOLD;
-  const hasFollowUp = freeTextEnabled || (predefinedAnswersEnabled && visibleAnswers.length > 0) || showFollowUp;
   // "Skicka"-knappen behövs bara om fritext ELLER uppföljningsfält visas.
   // Bara fördefinierade svar = auto-submit vid klick på svar.
   const needsSubmitButton = freeTextEnabled || showFollowUp;
