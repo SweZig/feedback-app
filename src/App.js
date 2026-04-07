@@ -89,12 +89,22 @@ function AppInner({ user, activeCustomer, onRefresh }) {
     setRefreshKey(v => v + 1);           // Tvinga omrendering av sidor
   }, [onRefresh]);
 
+  // Ladda om activeCustomer när användaren navigerar bort från Inställningar.
+  // SettingsPage ändrar activeChainId i localStorage men anropar inte onRefresh
+  // direkt vid kedjebyten — detta fångar upp det.
+  const handleNavigate = useCallback((newPage) => {
+    if (page === 'settings' && newPage !== 'settings') {
+      onRefresh();
+    }
+    setPage(newPage);
+  }, [page, onRefresh]);
+
   return (
     <div className="app">
       <SimulationBanner />
       <Navigation
         currentPage={page}
-        onNavigate={setPage}
+        onNavigate={handleNavigate}
         activeCustomer={activeCustomer}
         user={user}
         onSignOut={signOut}
