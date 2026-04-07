@@ -367,6 +367,17 @@ export async function saveResponse(response) {
   if (idx >= 0) { all[idx] = enriched; } else { all.push(enriched); }
   localStorage.setItem('responses', JSON.stringify(all));
 
+  // Skriv även till npsResponses-nyckeln (format som ReportPage/storage.js förväntar sig)
+  const npsAll = JSON.parse(localStorage.getItem('npsResponses') || '[]');
+  const npsEnriched = {
+    ...enriched,
+    timestamp:  response.respondedAt || new Date().toISOString(), // ReportPage läser r.timestamp
+    customerId: response.chainId,   // ReportPage filtrerar på customerId
+  };
+  const npsIdx = npsAll.findIndex(r => r.id === response.id);
+  if (npsIdx >= 0) { npsAll[npsIdx] = npsEnriched; } else { npsAll.push(npsEnriched); }
+  localStorage.setItem('npsResponses', JSON.stringify(npsAll));
+
   // ── Supabase ──
   try {
     const payload = {
