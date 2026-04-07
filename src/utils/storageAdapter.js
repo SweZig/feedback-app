@@ -672,3 +672,45 @@ export async function getAssembledChain(chainId) {
     return null;
   }
 }
+
+
+// ════════════════════════════════════════════════════════════
+// RAPPORT-HYDRERING
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Hämtar alla svar för en kedja från Supabase och skriver dem
+ * till npsResponses i localStorage (i det format ReportPage förväntar sig).
+ * Supabase är källan till sanning — localStorage fungerar som lokal cache.
+ */
+export async function hydrateResponsesFromSupabase(chainId) {
+  if (!chainId) return;
+  try {
+    const { data: responses = [], error } = await supabase
+      .from('responses')
+      .select('*, response_answers(*), response_comments(*)')
+      .eq('chain_id', chainId)
+      .order('responded_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Transformera Supabase-format → storage.js-format som ReportPage förväntar sig
+    const formatted = responses.map(r => ({
+      id:               r.id,
+      score:            r.score,
+      comment:          r.response_comments?.[0]?.comment || '',
+      predefinedAnswer: r.response_answers?.[0]?.predefined_answer_id || '',
+      customerId:       r.chain_id,
+      touchpointId:     r.touchpoint_id,
+      timestamp:        new Date(r.responded_at).getTime(),
+      followUpEmail:    '',
+      nps_category:     r.nps_category,
+    }));
+
+    // Skriv till npsResponses — Supabase är master, ersätt helt
+    localStorage.setItem('npsResponses', JSON.stringify(formatted));
+    log('hydrateResponsesFromSupabase ✓', formatted.length, 'svar för kedja', chainId);
+  } catch (e) {
+    logError('hydrateResponsesFromSupabase', e);
+  }
+}

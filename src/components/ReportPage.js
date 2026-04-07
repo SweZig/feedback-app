@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getFilteredResponses, getResponsesByDateRange } from '../utils/storage';
+import { hydrateResponsesFromSupabase } from '../utils/storageAdapter';
 import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
 import { TYPE_LABELS } from '../utils/settings';
@@ -231,8 +232,17 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   const customerId = activeCustomer?.id || null;
+
+  // Hämta alla svar från Supabase och populera localStorage vid mount
+  // och när aktiv kedja byter — garanterar att alla användares svar visas
+  useEffect(() => {
+    if (!customerId) return;
+    setHydrated(false);
+    hydrateResponsesFromSupabase(customerId).then(() => setHydrated(true));
+  }, [customerId]);
   const departments = activeCustomer?.departments || [];
   const touchpoints = activeCustomer?.touchpoints || [];
   const hasDepts = departments.length > 0;
