@@ -27,8 +27,8 @@ const IS_INVITE_FLOW = sessionStorage.getItem('supabase_auth_type') === 'invite'
 const KIOSK_TOKEN = (() => {
   const params = new URLSearchParams(window.location.search);
   const tp = params.get('tp');
-  // UUID-format: 8-4-4-4-12 hex-tecken
-  if (tp && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tp)) {
+  // Acceptera UUID med bindestreck (8-4-4-4-12) ELLER 32-char hex utan bindestreck
+  if (tp && /^([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(tp)) {
     return tp;
   }
   return null;
