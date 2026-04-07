@@ -523,3 +523,128 @@ export function getAllLocalStorageData(organizationId) {
     organizationId,
   };
 }
+
+
+// ════════════════════════════════════════════════════════════
+// ASSEMBLY — Bygger ihop nästlat format för komponenter
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Intern hjälpfunktion.
+ * Konverterar Supabase-rader till det nästlade format
+ * som SurveyPage, ReportPage och SettingsPage förväntar sig.
+ */
+function assembleChain(chain, departments, touchpoints) {
+  return {
+    id:           chain.id,
+    name:         chain.name,
+    customLogo:   chain.custom_logo || null,
+    // Config-block — null-värden hanteras av getEffectiveConfig i settings.js
+    physicalConfig: chain.config?.physicalConfig || null,
+    onlineConfig:   chain.config?.onlineConfig   || null,
+    otherConfig:    chain.config?.otherConfig     || null,
+    enpsConfig:     chain.config?.enpsConfig      || null,
+    departments: (departments || []).map(d => ({
+      id:         d.id,
+      name:       d.name,
+      uniqueCode: d.unique_code || '',
+      order:      d.sort_order  || 0,
+    })),
+    touchpoints: (touchpoints || []).map(t => ({
+      id:             t.id,
+      name:           t.name,
+      departmentId:   t.department_id,
+      chainId:        chain.id,
+      type:           t.type || 'physical',
+      mode:           t.mode || 'app',
+      order:          t.sort_order    || 0,
+      configOverride: t.config_override || null,
+    })),
+    activeTouchpointId: null, // sätts av App.js från localStorage (UI-state)
+  };
+}
+
+/**
+ * Hämtar alla kedjor för en organisation från Supabase
+ * och bygger ihop dem i nästlat format.
+ * Använder 3 queries (inte N+1) för effektivitet.
+ */
+export async function getAssembledCustomers(organizationId) {
+  try {
+    // 1 — Hämta alla kedjor för organisationen
+    const { data: chains = [], error: chainsError } = await supabase
+      .from('chains')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .order('sort_order');
+
+    if (chainsError) throw chainsError;
+    if (chains.length === 0) return [];
+
+    const chainIds = chains.map(c => c.id);
+
+    // 2 — Hämta alla avdelningar för dessa kedjor
+    const { data: allDepartments = [] } = await supabase
+      .from('departments')
+      .select('*')
+      .in('chain_id', chainIds)
+      .is('deleted_at', null)
+      .order('sort_order');
+
+    // 3 — Hämta alla mätpunkter för dessa kedjor
+    const { data: allTouchpoints = [] } = await supabase
+      .from('touchpoints')
+      .select('*')
+      .in('chain_id', chainIds)
+      .is('deleted_at', null)
+      .order('sort_order');
+
+    // Bygg ihop nästlat format per kedja
+    return chains.map(chain => {
+      const departments = allDepartments.filter(d => d.chain_id === chain.id);
+      const touchpoints = allTouchpoints.filter(t => t.chain_id === chain.id);
+      return assembleChain(chain, departments, touchpoints);
+    });
+
+  } catch (e) {
+    logError('getAssembledCustomers', e);
+    return [];
+  }
+}
+
+/**
+ * Hämtar och bygger ihop en enskild kedja från Supabase.
+ * Används när en specifik kedja behöver laddas om.
+ */
+export async function getAssembledChain(chainId) {
+  try {
+    const { data: chain, error } = await supabase
+      .from('chains')
+      .select('*')
+      .eq('id', chainId)
+      .is('deleted_at', null)
+      .single();
+
+    if (error || !chain) return null;
+
+    const { data: departments = [] } = await supabase
+      .from('departments')
+      .select('*')
+      .eq('chain_id', chainId)
+      .is('deleted_at', null)
+      .order('sort_order');
+
+    const { data: touchpoints = [] } = await supabase
+      .from('touchpoints')
+      .select('*')
+      .eq('chain_id', chainId)
+      .is('deleted_at', null)
+      .order('sort_order');
+
+    return assembleChain(chain, departments, touchpoints);
+  } catch (e) {
+    logError('getAssembledChain', e);
+    return null;
+  }
+}
