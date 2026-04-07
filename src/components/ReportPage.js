@@ -232,23 +232,26 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
-  const [responses_ts, setResponses_ts] = useState(0);
+  const [hydratedResponses, setHydratedResponses] = useState(null);
 
   const customerId = activeCustomer?.id || null;
 
-  // Hämta alla svar från Supabase och populera localStorage.
-  // Kör när customerId ändras — inkl. när activeCustomer laddats klart från Supabase.
+  // Hämta alla svar från Supabase direkt till state.
+  // Undviker localStorage som mellansteg — React renderar om när datan finns.
   useEffect(() => {
     if (!customerId) return;
     let cancelled = false;
     hydrateResponsesFromSupabase(customerId)
-      .then(() => { if (!cancelled) setResponses_ts(Date.now()); })
+      .then(() => {
+        if (!cancelled) {
+          // Läs från localStorage efter hydrering och sätt i state
+          const stored = JSON.parse(localStorage.getItem('npsResponses') || '[]');
+          setHydratedResponses(stored);
+        }
+      })
       .catch(e => console.error('[ReportPage] hydrate failed:', e));
     return () => { cancelled = true; };
   }, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // responses_ts används för att tvinga omrendering efter hydrering
-  void responses_ts;
   const departments = activeCustomer?.departments || [];
   const touchpoints = activeCustomer?.touchpoints || [];
   const hasDepts = departments.length > 0;
@@ -270,14 +273,41 @@ export default function ReportPage({ activeCustomer }) {
 
   const touchpointIds = resolveTouchpointIds(filterMode);
 
-  const responses = dateRange
-    ? getResponsesByDateRange(fromDate, toDate, customerId, touchpointIds)
-    : getFilteredResponses(filterDays, customerId, touchpointIds);
+  // Använd hydratedResponses (från Supabase) om tillgänglig,
+  // annars fallback på localStorage direkt
+  const responses = hydratedResponses !== null
+    ? (dateRange
+        ? hydratedResponses.filter(r => {
+            const ts = r.timestamp;
+            const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
+            const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
+            const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
+            return ts >= fromTs && ts <= toTs && tpOk;
+          })
+        : hydratedResponses.filter(r => {
+            const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
+            const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
+            return r.timestamp >= cutoff && tpOk;
+          }))
+    : (dateRange
+        ? getResponsesByDateRange(fromDate, toDate, customerId, touchpointIds)
+        : getFilteredResponses(filterDays, customerId, touchpointIds));
 
   // For Mätpunkter view: date-filtered only, not tp-filtered
-  const allResponses = dateRange
-    ? getResponsesByDateRange(fromDate, toDate, customerId, null)
-    : getFilteredResponses(filterDays, customerId, null);
+  const allResponses = hydratedResponses !== null
+    ? (dateRange
+        ? hydratedResponses.filter(r => {
+            const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
+            const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
+            return r.timestamp >= fromTs && r.timestamp <= toTs;
+          })
+        : hydratedResponses.filter(r => {
+            const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
+            return r.timestamp >= cutoff;
+          }))
+    : (dateRange
+        ? getResponsesByDateRange(fromDate, toDate, customerId, null)
+        : getFilteredResponses(filterDays, customerId, null));
 
   const result = calculateNps(responses);
 
