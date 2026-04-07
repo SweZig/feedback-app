@@ -103,7 +103,7 @@ function NpsGauge({ nps, total, periodLabel }) {
   const clampedNps = Math.max(-100, Math.min(100, nps));
   const angleDeg = 180 - ((clampedNps + 100) / 200) * 180;
   const angleRad = (angleDeg * Math.PI) / 180;
-  const nx = 100 - 65 * Math.cos(angleRad);
+  const nx = 100 + 65 * Math.cos(angleRad);
   const ny = 100 - 65 * Math.sin(angleRad);
   const color = nps >= 30 ? '#27ae60' : nps >= 0 ? '#f39c12' : '#e74c3c';
   return (
