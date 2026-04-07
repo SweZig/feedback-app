@@ -252,7 +252,7 @@ export default function ReportPage({ activeCustomer }) {
         const formatted = (data || []).map(r => ({
           id:               r.id,
           score:            r.score,
-          comment:          r.response_comments?.[0]?.comment || '',
+          comment:          (Array.isArray(r.response_comments) ? r.response_comments[0]?.comment : r.response_comments?.comment) || '',
           predefinedAnswer: r.response_answers?.[0]?.predefined_answers?.text || '',
           customerId:       r.chain_id,
           touchpointId:     r.touchpoint_id,
