@@ -32,11 +32,13 @@ async function syncDeptToSupabase(dept, chainId) {
 }
 async function syncTouchpointToSupabase(tp, chainId) {
   try {
-    await supabase.from('touchpoints').upsert({
+    const payload = {
       id: tp.id, chain_id: chainId, department_id: tp.departmentId || null, name: tp.name,
       sort_order: tp.order || 0, is_active: true, config_override: tp.configOverride || null,
       type: tp.type || 'physical', mode: tp.mode || 'app',
-    }, { onConflict: 'id' });
+    };
+    if (tp.access_token) payload.access_token = tp.access_token;
+    await supabase.from('touchpoints').upsert(payload, { onConflict: 'id' });
   } catch (e) { console.error('[Settings] syncTp:', e?.message); }
 }
 async function softDeleteChainInSupabase(id) {
@@ -531,6 +533,38 @@ function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
             </p>
             <ConfigForm config={localConfig} onChange={handleConfigChange} type={tpType} showCountdown={mode === 'app'} />
           </div>
+          <div className="modal-section">
+            <h3>Kiosk-token</h3>
+            <p className="settings-card-desc" style={{ marginBottom: '0.5rem' }}>
+              Token identifierar denna mätpunkt för surfplattor i kiosk-läge. URL:en öppnas i Fully Kiosk Browser utan inloggning.
+            </p>
+            {tp.access_token ? (
+              <div className="token-display">
+                <code className="token-display-code">{`${window.location.origin}/?tp=${tp.access_token}`}</code>
+                <button
+                  type="button"
+                  className="settings-btn settings-btn--secondary"
+                  style={{ marginTop: '0.5rem' }}
+                  onClick={async (e) => {
+                    await navigator.clipboard.writeText(`${window.location.origin}/?tp=${tp.access_token}`);
+                    const orig = e.currentTarget.textContent;
+                    e.currentTarget.textContent = '✓ Kopierad!';
+                    setTimeout(() => { e.currentTarget.textContent = orig; }, 1500);
+                  }}
+                >📋 Kopiera URL</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="settings-btn settings-btn--primary"
+                onClick={async () => {
+                  // Generera ett nytt UUID-token
+                  const newToken = crypto.randomUUID().replace(/-/g, '');
+                  onUpdate(tp.id, { access_token: newToken });
+                }}
+              >🔑 Generera token</button>
+            )}
+          </div>
           <div className="modal-section modal-footer-actions">
             <button className="settings-btn settings-btn--danger-outline"
               onClick={() => { onReset(tp.id, tp.name); onClose(); }}>
@@ -948,7 +982,7 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                     {deptTps.map((tp) => {
                                       const isActive = active.activeTouchpointId === tp.id;
                                       return (
-                                        <li key={tp.id} className={'tp-item tp-item--in-dept' + (isActive ? ' tp-item--active' : '') + (tp.access_token ? ' tp-item--has-token' : '')}>
+                                        <li key={tp.id} className={'tp-item tp-item--in-dept tp-item--has-token' + (isActive ? ' tp-item--active' : '')}>
                                           <div className="tp-item-top">
                                             <button className="tp-detail-btn" onClick={() => setSelectedTp({ tp, dept: d })}>
                                               <span className={`dept-badge ${TYPE_BADGE[tp.type] || ''}`}>{TYPE_LABELS[tp.type] || tp.type}</span>
@@ -958,23 +992,27 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                             <button className={`dept-activate-btn ${isActive ? 'dept-activate-btn--on' : ''}`} onClick={() => handleSetActiveTp(tp.id)}>{isActive ? 'Aktiv' : 'Sätt aktiv'}</button>
                                             <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'tp', id: tp.id, label: tp.name })}>&times;</button>
                                           </div>
-                                          {tp.access_token && (
-                                            <div className="tp-token-row">
-                                              <span className="tp-token-label">Kiosk-URL</span>
-                                              <code className="tp-token-code">{`${window.location.origin}/?tp=${tp.access_token}`}</code>
-                                              <button
-                                                type="button"
-                                                className="tp-token-copy"
-                                                title="Kopiera URL"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  navigator.clipboard.writeText(`${window.location.origin}/?tp=${tp.access_token}`);
-                                                  e.currentTarget.textContent = '✓';
-                                                  setTimeout(() => { e.currentTarget.textContent = '📋'; }, 1500);
-                                                }}
-                                              >📋</button>
-                                            </div>
-                                          )}
+                                          <div className="tp-token-row">
+                                            <span className="tp-token-label">Token</span>
+                                            {tp.access_token ? (
+                                              <>
+                                                <code className="tp-token-code">{tp.access_token}</code>
+                                                <button
+                                                  type="button"
+                                                  className="tp-token-copy"
+                                                  title="Kopiera kiosk-URL"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigator.clipboard.writeText(`${window.location.origin}/?tp=${tp.access_token}`);
+                                                    e.currentTarget.textContent = '✓';
+                                                    setTimeout(() => { e.currentTarget.textContent = '📋'; }, 1500);
+                                                  }}
+                                                >📋</button>
+                                              </>
+                                            ) : (
+                                              <span className="tp-token-na">n/a — generera via inställningar</span>
+                                            )}
+                                          </div>
                                         </li>
                                       );
                                     })}

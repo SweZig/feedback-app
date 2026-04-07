@@ -579,6 +579,7 @@ function assembleChain(chain, departments, touchpoints) {
       mode:           t.mode || 'app',
       order:          t.sort_order    || 0,
       configOverride: t.config_override || null,
+      access_token:   t.access_token  || null,
     })),
     activeTouchpointId: null, // sätts av App.js från localStorage (UI-state)
   };
