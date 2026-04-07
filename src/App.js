@@ -174,10 +174,14 @@ function App() {
       const activeId = getActiveChainId();
       const active   = customers.find(c => c.id === activeId) || customers[0];
 
-      // Bevara activeTouchpointId från localStorage (ren UI-state)
+      // Bevara activeTouchpointId från localStorage (ren UI-state).
+      // Obs: localStorage är domänspecifik — på feedbackapp.store är den tom.
+      // Fallback: välj första tillgängliga touchpoint automatiskt.
       const localChains = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
       const localChain  = localChains.find(c => c.id === active.id);
-      active.activeTouchpointId = localChain?.activeTouchpointId || null;
+      const savedTpId   = localChain?.activeTouchpointId || null;
+      const firstTpId   = active.touchpoints?.[0]?.id || null;
+      active.activeTouchpointId = savedTpId || firstTpId;
 
       setActiveCustomer(active);
     } catch (e) {
