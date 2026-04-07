@@ -1,5 +1,5 @@
 // src/App.js
-import { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   getActiveChainId,
   setActiveChainId,
@@ -144,21 +144,24 @@ function App() {
   const [user, setUser]                   = useState(undefined);
   const [authLoading, setAuthLoading]     = useState(true);
   const [orgId, setOrgId]                 = useState(null);
+  const [allOrgIds, setAllOrgIds]         = useState([]);
   const [activeCustomer, setActiveCustomer] = useState(null);
 
   /**
-   * Laddar alla kedjor för organisationen från Supabase,
-   * väljer den aktiva kedjan (från localStorage UI-state eller första i listan)
-   * och bevarar activeTouchpointId från localStorage.
+   * Laddar alla kedjor för användaren från Supabase.
+   * Hämtar ALLA org_members-rader för användaren så att owner
+   * ser alla organisationers kedjor (ICA, Biltema etc.) och
+   * vanliga användare ser bara sin organisations kedja.
    *
-   * Faller tillbaka till localStorage (settings.js) om Supabase
-   * inte har någon data ännu — t.ex. innan migrering körts.
+   * Väljer aktiv kedja från localStorage UI-state (npsActiveCustomerId).
+   * Faller tillbaka till localStorage (settings.js) om Supabase saknar data.
    */
-  const loadActiveCustomer = useCallback(async (currentOrgId) => {
-    if (!currentOrgId) return;
+  const loadActiveCustomer = useCallback(async (allOrgIds) => {
+    const orgIds = Array.isArray(allOrgIds) ? allOrgIds : [allOrgIds].filter(Boolean);
+    if (orgIds.length === 0) return;
 
     try {
-      const customers = await getAssembledCustomers(currentOrgId);
+      const customers = await getAssembledCustomers(orgIds);
 
       if (customers.length === 0) {
         // Fallback — ingen Supabase-data ännu, läs från localStorage
@@ -172,8 +175,8 @@ function App() {
       const active   = customers.find(c => c.id === activeId) || customers[0];
 
       // Bevara activeTouchpointId från localStorage (ren UI-state)
-      const localChains  = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
-      const localChain   = localChains.find(c => c.id === active.id);
+      const localChains = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
+      const localChain  = localChains.find(c => c.id === active.id);
       active.activeTouchpointId = localChain?.activeTouchpointId || null;
 
       setActiveCustomer(active);
@@ -194,18 +197,28 @@ function App() {
       if (currentUser && !IS_INVITE_FLOW) {
         try {
           const { supabase } = await import('./utils/supabaseClient');
-          const { data } = await supabase
+
+          // Hämta ALLA organisationer användaren tillhör
+          const { data: memberships = [] } = await supabase
             .from('org_members')
             .select('organization_id')
-            .eq('user_id', currentUser.id)
-            .limit(1)
-            .single();
+            .eq('user_id', currentUser.id);
 
-          const id = data?.organization_id || null;
-          setOrgId(id);
-          await loadActiveCustomer(id);
+          const allOrgIds = memberships.map(m => m.organization_id);
+
+          // Primär org för RoleProvider (första, eller null)
+          const primaryOrgId = allOrgIds[0] || null;
+          setOrgId(primaryOrgId);
+          setAllOrgIds(allOrgIds);
+
+          if (allOrgIds.length > 0) {
+            await loadActiveCustomer(allOrgIds);
+          } else {
+            // Ingen org_members-rad — visa localStorage-data
+            const { getActiveCustomer } = await import('./utils/settings');
+            setActiveCustomer(getActiveCustomer());
+          }
         } catch {
-          // Ingen org_members-rad — visa localStorage-data
           const { getActiveCustomer } = await import('./utils/settings');
           setActiveCustomer(getActiveCustomer());
         }
@@ -215,10 +228,16 @@ function App() {
     return () => subscription.unsubscribe();
   }, [loadActiveCustomer]);
 
+  // Spara allOrgIds när de hämtas
+  const allOrgIdsRef = React.useRef([]);
+  useEffect(() => {
+    allOrgIdsRef.current = allOrgIds;
+  }, [allOrgIds]);
+
   // Callback som komponenter anropar efter ändringar
   const handleRefresh = useCallback(() => {
-    loadActiveCustomer(orgId);
-  }, [orgId, loadActiveCustomer]);
+    loadActiveCustomer(allOrgIdsRef.current);
+  }, [loadActiveCustomer]);
 
   // ── Laddningsskärm ──
   if (authLoading) {

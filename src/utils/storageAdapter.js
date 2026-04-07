@@ -565,17 +565,21 @@ function assembleChain(chain, departments, touchpoints) {
 }
 
 /**
- * Hämtar alla kedjor för en organisation från Supabase
+ * Hämtar alla kedjor för en eller flera organisationer från Supabase
  * och bygger ihop dem i nästlat format.
+ * Accepterar ett enskilt ID (string) eller flera (array).
  * Använder 3 queries (inte N+1) för effektivitet.
  */
 export async function getAssembledCustomers(organizationId) {
   try {
-    // 1 — Hämta alla kedjor för organisationen
+    const orgIds = Array.isArray(organizationId) ? organizationId : [organizationId];
+    if (orgIds.length === 0) return [];
+
+    // 1 — Hämta alla kedjor för organisationerna
     const { data: chains = [], error: chainsError } = await supabase
       .from('chains')
       .select('*')
-      .eq('organization_id', organizationId)
+      .in('organization_id', orgIds)
       .is('deleted_at', null)
       .order('sort_order');
 
