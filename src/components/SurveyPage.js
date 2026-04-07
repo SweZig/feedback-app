@@ -63,6 +63,9 @@ function SurveyPage({ activeCustomer }) {
   const mode = activeTp?.mode || 'app';
   const showFollowUp = followUpEnabled && score !== null && score <= FOLLOW_UP_THRESHOLD;
   const hasFollowUp = freeTextEnabled || (predefinedAnswersEnabled && visibleAnswers.length > 0) || showFollowUp;
+  // "Skicka"-knappen behövs bara om fritext ELLER uppföljningsfält visas.
+  // Bara fördefinierade svar = auto-submit vid klick på svar.
+  const needsSubmitButton = freeTextEnabled || showFollowUp;
 
   useEffect(() => {
     if (!submitted) return;
@@ -179,7 +182,14 @@ function SurveyPage({ activeCustomer }) {
             {visibleAnswers.map((answer) => (
               <button key={answer.text} type="button"
                 className={`survey-predefined-btn ${predefinedAnswer === answer.text ? 'survey-predefined-btn--selected' : ''}`}
-                onClick={() => setPredefinedAnswer(predefinedAnswer === answer.text ? '' : answer.text)}
+                onClick={() => {
+                  const chosen = predefinedAnswer === answer.text ? '' : answer.text;
+                  setPredefinedAnswer(chosen);
+                  // Auto-submit direkt om varken fritext eller uppföljningsfält visas
+                  if (!freeTextEnabled && !showFollowUp && chosen !== '') {
+                    submit(score, '', chosen);
+                  }
+                }}
               >{answer.text}</button>
             ))}
           </div>
@@ -211,7 +221,7 @@ function SurveyPage({ activeCustomer }) {
         </div>
       )}
 
-      {score !== null && hasFollowUp && (
+      {score !== null && needsSubmitButton && (
         <button className="survey-btn" type="submit">Skicka</button>
       )}
     </form>

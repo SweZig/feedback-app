@@ -162,6 +162,7 @@ export default function KioskPage({ accessToken }) {
   const hasFollowUp  = freeTextEnabled ||
                        (predefinedAnswersEnabled && visibleAnswers.length > 0) ||
                        showFollowUp;
+  const needsSubmitButton = freeTextEnabled || showFollowUp;
 
   useEffect(() => {
     if (!submitted) return;
@@ -319,7 +320,14 @@ export default function KioskPage({ accessToken }) {
                   key={answer.text}
                   type="button"
                   className={`survey-predefined-btn ${predefinedAnswer === answer.text ? 'survey-predefined-btn--selected' : ''}`}
-                  onClick={() => setPredefinedAnswer(predefinedAnswer === answer.text ? '' : answer.text)}
+                  onClick={() => {
+                  const chosen = predefinedAnswer === answer.text ? '' : answer.text;
+                  setPredefinedAnswer(chosen);
+                  // Auto-submit direkt om varken fritext eller uppföljningsfält visas
+                  if (!freeTextEnabled && !showFollowUp && chosen !== '') {
+                    submit(score, '', chosen);
+                  }
+                }}
                 >
                   {answer.text}
                 </button>
@@ -357,7 +365,7 @@ export default function KioskPage({ accessToken }) {
           </div>
         )}
 
-        {score !== null && hasFollowUp && (
+        {score !== null && needsSubmitButton && (
           <button className="survey-btn" type="submit">Skicka</button>
         )}
       </form>
