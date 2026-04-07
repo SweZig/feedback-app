@@ -232,17 +232,23 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [responseVersion, setResponseVersion] = useState(0);
+  const [responses_ts, setResponses_ts] = useState(0);
 
   const customerId = activeCustomer?.id || null;
 
-  // Hämta alla svar från Supabase och populera localStorage vid mount
-  // och när aktiv kedja byter — garanterar att alla användares svar visas
+  // Hämta alla svar från Supabase och populera localStorage.
+  // Kör när customerId ändras — inkl. när activeCustomer laddats klart från Supabase.
   useEffect(() => {
     if (!customerId) return;
-    hydrateResponsesFromSupabase(customerId).then(() => setResponseVersion(v => v + 1));
-  }, [customerId]);
+    let cancelled = false;
+    hydrateResponsesFromSupabase(customerId)
+      .then(() => { if (!cancelled) setResponses_ts(Date.now()); })
+      .catch(e => console.error('[ReportPage] hydrate failed:', e));
+    return () => { cancelled = true; };
+  }, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // responses_ts används för att tvinga omrendering efter hydrering
+  void responses_ts;
   const departments = activeCustomer?.departments || [];
   const touchpoints = activeCustomer?.touchpoints || [];
   const hasDepts = departments.length > 0;
