@@ -91,7 +91,11 @@ export function getDefaultConfig(type) {
 // This ensures followUpEnabled (and all other chain-level settings) always flow through.
 export function getEffectiveConfig(chain, touchpointId) {
   const tp = (chain?.touchpoints || []).find((t) => t.id === touchpointId);
-  if (!tp) return { ...DEFAULT_PHYSICAL_CONFIG };
+  if (!tp) {
+    // Ingen touchpoint hittad — returnera kedjans physicalConfig som fallback
+    // (istället för hårdkodad default, så att kedja-inställningar alltid respekteras)
+    return { ...DEFAULT_PHYSICAL_CONFIG, ...(chain?.physicalConfig || {}) };
+  }
   const type = tp.type || 'physical';
   const chainConfig =
     type === 'physical'
