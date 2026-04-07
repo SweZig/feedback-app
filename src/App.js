@@ -19,48 +19,35 @@ import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
 import './App.css';
 
-// Läs av invite-flaggan från sessionStorage (satt av inline script i index.html
-// innan Supabase JS hann rensa URL-hashen)
 const IS_INVITE_FLOW = sessionStorage.getItem('supabase_auth_type') === 'invite';
 
-// ── Simulerings-banner ────────────────────────────────────────
 function SimulationBanner() {
   const { simulatedRole, stopSimulation } = useRole();
   const ROLE_LABELS = { admin: 'Administratör', manager: 'Manager', analytiker: 'Analytiker' };
   if (!simulatedRole) return null;
   return (
     <div style={{
-      background: '#fff8e1',
-      borderBottom: '2px solid #ffe082',
-      padding: '0.5rem 1rem',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '1rem',
-      fontSize: '0.875rem',
-      color: '#7a5a00',
-      fontWeight: 600,
+      background: '#fff8e1', borderBottom: '2px solid #ffe082',
+      padding: '0.5rem 1rem', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', gap: '1rem', fontSize: '0.875rem',
+      color: '#7a5a00', fontWeight: 600,
     }}>
       🎭 Rollsimulering aktiv — du ser appen som <strong>{ROLE_LABELS[simulatedRole]}</strong>
       <button onClick={stopSimulation} style={{
         background: '#e74c3c', color: '#fff', border: 'none',
         borderRadius: '5px', padding: '0.25rem 0.75rem',
         fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600,
-      }}>
-        Avsluta
-      </button>
+      }}>Avsluta</button>
     </div>
   );
 }
 
-// ── Inre app (kräver RoleContext) ─────────────────────────────
-function AppInner({ user, activeCustomer, onRefresh }) {
+function AppInner({ user, activeCustomer, onRefresh, onChainChange }) {
   const [page, setPage]             = useState('survey');
   const [refreshKey, setRefreshKey] = useState(0);
   const { can, simulatedRole }      = useRole();
   const urlHandledRef               = useRef(false);
 
-  // Hantera ?tp=<id> i URL — kör bara en gång när activeCustomer finns
   useEffect(() => {
     if (!activeCustomer || urlHandledRef.current) return;
     const params = new URLSearchParams(window.location.search);
@@ -77,7 +64,6 @@ function AppInner({ user, activeCustomer, onRefresh }) {
     }
   }, [activeCustomer, onRefresh]);
 
-  // Rollsimulering — styra om från skyddade sidor
   useEffect(() => {
     if (!simulatedRole) return;
     if (page === 'settings' && !can('manage_chains')) setPage('survey');
@@ -85,13 +71,11 @@ function AppInner({ user, activeCustomer, onRefresh }) {
   }, [simulatedRole, page, can]);
 
   const handleSettingsChange = useCallback(() => {
-    onRefresh();                          // Ladda om activeCustomer från Supabase
-    setRefreshKey(v => v + 1);           // Tvinga omrendering av sidor
+    onRefresh();
+    setRefreshKey(v => v + 1);
   }, [onRefresh]);
 
-  // Ladda om activeCustomer när användaren navigerar bort från Inställningar.
-  // SettingsPage ändrar activeChainId i localStorage men anropar inte onRefresh
-  // direkt vid kedjebyten — detta fångar upp det.
+  // Navigera — ladda om från Supabase bara när vi lämnar Inställningar
   const handleNavigate = useCallback((newPage) => {
     if (page === 'settings' && newPage !== 'settings') {
       onRefresh();
@@ -119,16 +103,17 @@ function AppInner({ user, activeCustomer, onRefresh }) {
           <ReportPage key={refreshKey} activeCustomer={activeCustomer} />
         )}
         {page === 'settings' && can('manage_chains') && (
-          <SettingsPage onSettingsChange={handleSettingsChange} />
+          <SettingsPage
+            onSettingsChange={handleSettingsChange}
+            onChainSelect={onChainChange}
+          />
         )}
         {page === 'settings' && !can('manage_chains') && (
           <div style={{ padding: '2rem', color: '#7a9aaa' }}>
             Du har inte behörighet att se inställningar.
           </div>
         )}
-        {page === 'admin' && can('view_admin') && (
-          <AdminPage />
-        )}
+        {page === 'admin' && can('view_admin') && <AdminPage />}
         {page === 'admin' && !can('view_admin') && (
           <div style={{ padding: '2rem', color: '#7a9aaa' }}>
             Du har inte behörighet att se användarhantering.
@@ -139,60 +124,62 @@ function AppInner({ user, activeCustomer, onRefresh }) {
   );
 }
 
-// ── Root ──────────────────────────────────────────────────────
 function App() {
-  const [user, setUser]                   = useState(undefined);
-  const [authLoading, setAuthLoading]     = useState(true);
-  const [orgId, setOrgId]                 = useState(null);
-  const [allOrgIds, setAllOrgIds]         = useState([]);
+  const [user, setUser]                     = useState(undefined);
+  const [authLoading, setAuthLoading]       = useState(true);
+  const [orgId, setOrgId]                   = useState(null);
+  const [allOrgIds, setAllOrgIds]           = useState([]);
   const [activeCustomer, setActiveCustomer] = useState(null);
+  const debounceRef                         = useRef(null);
+  const allOrgIdsRef                        = useRef([]);
 
-  /**
-   * Laddar alla kedjor för användaren från Supabase.
-   * Hämtar ALLA org_members-rader för användaren så att owner
-   * ser alla organisationers kedjor (ICA, Biltema etc.) och
-   * vanliga användare ser bara sin organisations kedja.
-   *
-   * Väljer aktiv kedja från localStorage UI-state (npsActiveCustomerId).
-   * Faller tillbaka till localStorage (settings.js) om Supabase saknar data.
-   */
-  const loadActiveCustomer = useCallback(async (allOrgIds) => {
-    const orgIds = Array.isArray(allOrgIds) ? allOrgIds : [allOrgIds].filter(Boolean);
-    if (orgIds.length === 0) return;
+  // Synka allOrgIds till ref så callbacks alltid har senaste värdet
+  useEffect(() => { allOrgIdsRef.current = allOrgIds; }, [allOrgIds]);
+
+  const loadActiveCustomer = useCallback(async (orgIds) => {
+    const ids = Array.isArray(orgIds) ? orgIds : [orgIds].filter(Boolean);
+    if (ids.length === 0) return;
 
     try {
-      const customers = await getAssembledCustomers(orgIds);
+      const customers = await getAssembledCustomers(ids);
 
       if (customers.length === 0) {
-        // Fallback — ingen Supabase-data ännu, läs från localStorage
         const { getActiveCustomer } = await import('./utils/settings');
         setActiveCustomer(getActiveCustomer());
         return;
       }
 
-      // Hitta aktiv kedja baserat på localStorage UI-state
       const activeId = getActiveChainId();
       const active   = customers.find(c => c.id === activeId) || customers[0];
 
-      // Bevara activeTouchpointId från localStorage (ren UI-state).
-      // Obs: localStorage är domänspecifik — på feedbackapp.store är den tom.
-      // Fallback: välj första tillgängliga touchpoint automatiskt.
+      // Bevara activeTouchpointId — fallback till första touchpoint
       const localChains = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
       const localChain  = localChains.find(c => c.id === active.id);
-      const savedTpId   = localChain?.activeTouchpointId || null;
-      const firstTpId   = active.touchpoints?.[0]?.id || null;
-      active.activeTouchpointId = savedTpId || firstTpId;
+      active.activeTouchpointId =
+        localChain?.activeTouchpointId || active.touchpoints?.[0]?.id || null;
 
       setActiveCustomer(active);
     } catch (e) {
       console.error('[App] loadActiveCustomer:', e);
-      // Fallback vid fel
       const { getActiveCustomer } = await import('./utils/settings');
       setActiveCustomer(getActiveCustomer());
     }
   }, []);
 
-  // Auth state — körs en gång vid mount
+  // Debounced refresh — slår ihop snabba anrop till ett Supabase-anrop
+  const handleRefresh = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadActiveCustomer(allOrgIdsRef.current);
+    }, 80);
+  }, [loadActiveCustomer]);
+
+  // Direkt kedjeyte från SettingsPage — sätter activeChainId + debounced reload
+  const handleChainChange = useCallback((chainId) => {
+    setActiveChainId(chainId);
+    handleRefresh();
+  }, [handleRefresh]);
+
   useEffect(() => {
     const { data: { subscription } } = onAuthStateChange(async (currentUser) => {
       setUser(currentUser);
@@ -202,23 +189,21 @@ function App() {
         try {
           const { supabase } = await import('./utils/supabaseClient');
 
-          // Hämta ALLA organisationer användaren tillhör
           const { data: memberships = [] } = await supabase
             .from('org_members')
             .select('organization_id')
             .eq('user_id', currentUser.id);
 
-          const allOrgIds = memberships.map(m => m.organization_id);
+          const ids = memberships.map(m => m.organization_id);
+          const primaryOrgId = ids[0] || null;
 
-          // Primär org för RoleProvider (första, eller null)
-          const primaryOrgId = allOrgIds[0] || null;
           setOrgId(primaryOrgId);
-          setAllOrgIds(allOrgIds);
+          setAllOrgIds(ids);
+          allOrgIdsRef.current = ids;
 
-          if (allOrgIds.length > 0) {
-            await loadActiveCustomer(allOrgIds);
+          if (ids.length > 0) {
+            await loadActiveCustomer(ids);
           } else {
-            // Ingen org_members-rad — visa localStorage-data
             const { getActiveCustomer } = await import('./utils/settings');
             setActiveCustomer(getActiveCustomer());
           }
@@ -232,31 +217,16 @@ function App() {
     return () => subscription.unsubscribe();
   }, [loadActiveCustomer]);
 
-  // Spara allOrgIds när de hämtas
-  const allOrgIdsRef = React.useRef([]);
-  useEffect(() => {
-    allOrgIdsRef.current = allOrgIds;
-  }, [allOrgIds]);
-
-  // Callback som komponenter anropar efter ändringar
-  const handleRefresh = useCallback(() => {
-    loadActiveCustomer(allOrgIdsRef.current);
-  }, [loadActiveCustomer]);
-
-  // ── Laddningsskärm ──
   if (authLoading) {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center',
         justifyContent: 'center', background: '#f0f4f7',
         color: '#1e3a4f', fontSize: '1rem',
-      }}>
-        Laddar...
-      </div>
+      }}>Laddar...</div>
     );
   }
 
-  // Visa LoginPage om ingen inloggad användare, eller om invite-flöde pågår
   if (!user || IS_INVITE_FLOW) return <LoginPage />;
 
   return (
@@ -265,6 +235,7 @@ function App() {
         user={user}
         activeCustomer={activeCustomer}
         onRefresh={handleRefresh}
+        onChainChange={handleChainChange}
       />
     </RoleProvider>
   );
