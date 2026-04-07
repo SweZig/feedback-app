@@ -17,9 +17,22 @@ import ReportPage from './components/ReportPage';
 import SettingsPage from './components/SettingsPage';
 import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
+import KioskPage from './components/KioskPage';
 import './App.css';
 
 const IS_INVITE_FLOW = sessionStorage.getItem('supabase_auth_type') === 'invite';
+
+// Kiosk-läge: om ?tp=<access_token> finns i URL — visa enkät utan inloggning
+// access_token är ett UUID genererat per touchpoint i Supabase
+const KIOSK_TOKEN = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const tp = params.get('tp');
+  // UUID-format: 8-4-4-4-12 hex-tecken
+  if (tp && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tp)) {
+    return tp;
+  }
+  return null;
+})();
 
 function SimulationBanner() {
   const { simulatedRole, stopSimulation } = useRole();
@@ -229,6 +242,9 @@ function App() {
       }}>Laddar...</div>
     );
   }
+
+  // Kiosk-läge — visa enkät direkt utan inloggning
+  if (KIOSK_TOKEN) return <KioskPage accessToken={KIOSK_TOKEN} />;
 
   if (!user || IS_INVITE_FLOW) return <LoginPage />;
 
