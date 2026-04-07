@@ -683,10 +683,21 @@ export default function SettingsPage({ onSettingsChange }) {
   function handleConfigChange(type, newConfig) {
     if (!active) return;
     const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
-    updateChain(active.id, { [key]: newConfig }); const uc=getChains().find(c=>c.id===active.id); if(uc) syncChainToSupabase(uc);
+    updateChain(active.id, { [key]: newConfig });
+    const uc = getChains().find(c => c.id === active.id);
+    if (uc) {
+      // Synka kedja-config till Supabase
+      syncChainToSupabase(uc);
+      // Propagera automatiskt till alla matchande touchpoints
+      // så att config_override aldrig åsidosätter kedja-inställningar oavsiktligt
+      const affected = (uc.touchpoints || []).filter(t => t.type === type);
+      affected.forEach(tp => syncTouchpointToSupabase({ ...tp, configOverride: newConfig }, active.id));
+      if (affected.length > 0) {
+        // Uppdatera även localStorage för varje touchpoint
+        affected.forEach(tp => updateTouchpoint(active.id, tp.id, { configOverride: newConfig }));
+      }
+    }
     setChains(getChains()); onSettingsChange();
-    const tpCount = (active.touchpoints || []).filter((t) => t.type === type).length;
-    if (tpCount > 0) setConfirmApplyToAll({ type, newConfig, tpCount });
   }
 
   function handleApplyToAll(type) {
