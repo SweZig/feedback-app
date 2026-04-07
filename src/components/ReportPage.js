@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getFilteredResponses, getResponsesByDateRange } from '../utils/storage';
-import { hydrateResponsesFromSupabase } from '../utils/storageAdapter';
+import { supabase } from '../utils/supabaseClient';
 import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
 import { TYPE_LABELS } from '../utils/settings';
@@ -232,24 +232,35 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
-  const [hydratedResponses, setHydratedResponses] = useState(null);
+  const [supabaseResponses, setSupabaseResponses] = useState(null);
 
   const customerId = activeCustomer?.id || null;
 
-  // Hämta alla svar från Supabase direkt till state.
-  // Undviker localStorage som mellansteg — React renderar om när datan finns.
+  // Hämta svar direkt från Supabase till state.
+  // activeCustomer laddas asynkront — useEffect körs när customerId sätts.
   useEffect(() => {
     if (!customerId) return;
     let cancelled = false;
-    hydrateResponsesFromSupabase(customerId)
-      .then(() => {
-        if (!cancelled) {
-          // Läs från localStorage efter hydrering och sätt i state
-          const stored = JSON.parse(localStorage.getItem('npsResponses') || '[]');
-          setHydratedResponses(stored);
-        }
-      })
-      .catch(e => console.error('[ReportPage] hydrate failed:', e));
+    supabase
+      .from('responses')
+      .select('*, response_answers(predefined_answer_id, predefined_answers(text)), response_comments(comment)')
+      .eq('chain_id', customerId)
+      .order('responded_at', { ascending: false })
+      .then(({ data = [], error }) => {
+        if (cancelled) return;
+        if (error) { console.error('[ReportPage]', error.message); return; }
+        const formatted = (data || []).map(r => ({
+          id:               r.id,
+          score:            r.score,
+          comment:          r.response_comments?.[0]?.comment || '',
+          predefinedAnswer: r.response_answers?.[0]?.predefined_answers?.text || '',
+          customerId:       r.chain_id,
+          touchpointId:     r.touchpoint_id,
+          timestamp:        new Date(r.responded_at).getTime(),
+          nps_category:     r.nps_category,
+        }));
+        setSupabaseResponses(formatted);
+      });
     return () => { cancelled = true; };
   }, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
   const departments = activeCustomer?.departments || [];
@@ -273,18 +284,18 @@ export default function ReportPage({ activeCustomer }) {
 
   const touchpointIds = resolveTouchpointIds(filterMode);
 
-  // Använd hydratedResponses (från Supabase) om tillgänglig,
+  // Använd supabaseResponses (från Supabase) om tillgänglig,
   // annars fallback på localStorage direkt
-  const responses = hydratedResponses !== null
+  const responses = supabaseResponses !== null
     ? (dateRange
-        ? hydratedResponses.filter(r => {
+        ? supabaseResponses.filter(r => {
             const ts = r.timestamp;
             const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
             const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
             const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
             return ts >= fromTs && ts <= toTs && tpOk;
           })
-        : hydratedResponses.filter(r => {
+        : supabaseResponses.filter(r => {
             const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
             const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
             return r.timestamp >= cutoff && tpOk;
@@ -294,14 +305,14 @@ export default function ReportPage({ activeCustomer }) {
         : getFilteredResponses(filterDays, customerId, touchpointIds));
 
   // For Mätpunkter view: date-filtered only, not tp-filtered
-  const allResponses = hydratedResponses !== null
+  const allResponses = supabaseResponses !== null
     ? (dateRange
-        ? hydratedResponses.filter(r => {
+        ? supabaseResponses.filter(r => {
             const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
             const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
             return r.timestamp >= fromTs && r.timestamp <= toTs;
           })
-        : hydratedResponses.filter(r => {
+        : supabaseResponses.filter(r => {
             const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
             return r.timestamp >= cutoff;
           }))
