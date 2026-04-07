@@ -232,6 +232,7 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [responseVersion, setResponseVersion] = useState(0);
 
   const customerId = activeCustomer?.id || null;
