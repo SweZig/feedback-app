@@ -12,7 +12,7 @@ import { supabase } from './supabaseClient';
 
 // ── Konfiguration ────────────────────────────────────────────
 const READ_FROM = 'localStorage'; // 'localStorage' | 'supabase'
-const LOG_SYNC  = true;           // logga Supabase-skrivningar i konsolen
+const LOG_SYNC  = false;          // sätt true för debugging
 
 function log(...args) {
   if (LOG_SYNC) console.log('[storageAdapter]', ...args);
