@@ -543,7 +543,7 @@ function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
   );
 }
 
-export default function SettingsPage({ onSettingsChange }) {
+export default function SettingsPage({ onSettingsChange, onChainSelect, initialChains }) {
   const [section, setSection] = useState('chains');
   const [chains, setChains] = useState([]);
   const [activeId, setActiveId] = useState(() => getActiveChainId() || '');
