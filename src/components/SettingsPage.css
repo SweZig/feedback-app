@@ -241,3 +241,44 @@
   margin: 0.35rem 0 0;
   font-style: italic;
 }
+/* ── Kiosk-token per mätpunkt ─────────────────────────────── */
+.tp-item--has-token { align-items: stretch; flex-direction: column; gap: 0.25rem; }
+.tp-item-top { display: flex; align-items: center; gap: 0.5rem; }
+.tp-item-top .tp-detail-btn { flex: 1; }
+.tp-token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--color-bg);
+  border-radius: 5px;
+  padding: 0.25rem 0.4rem;
+  margin-top: 0.1rem;
+}
+.tp-token-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-light);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tp-token-code {
+  font-size: 0.7rem;
+  color: var(--color-primary);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.tp-token-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.1rem 0.25rem;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.tp-token-copy:hover { opacity: 1; }

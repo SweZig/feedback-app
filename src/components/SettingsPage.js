@@ -948,14 +948,33 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                     {deptTps.map((tp) => {
                                       const isActive = active.activeTouchpointId === tp.id;
                                       return (
-                                        <li key={tp.id} className={'tp-item tp-item--in-dept' + (isActive ? ' tp-item--active' : '')}>
-                                          <button className="tp-detail-btn" onClick={() => setSelectedTp({ tp, dept: d })}>
-                                            <span className={`dept-badge ${TYPE_BADGE[tp.type] || ''}`}>{TYPE_LABELS[tp.type] || tp.type}</span>
-                                            <span className="tp-name">{tp.name}</span>
-                                            <span className="tp-mode-badge">{MODE_LABELS[tp.mode] || tp.mode}</span>
-                                          </button>
-                                          <button className={`dept-activate-btn ${isActive ? 'dept-activate-btn--on' : ''}`} onClick={() => handleSetActiveTp(tp.id)}>{isActive ? 'Aktiv' : 'Sätt aktiv'}</button>
-                                          <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'tp', id: tp.id, label: tp.name })}>&times;</button>
+                                        <li key={tp.id} className={'tp-item tp-item--in-dept' + (isActive ? ' tp-item--active' : '') + (tp.access_token ? ' tp-item--has-token' : '')}>
+                                          <div className="tp-item-top">
+                                            <button className="tp-detail-btn" onClick={() => setSelectedTp({ tp, dept: d })}>
+                                              <span className={`dept-badge ${TYPE_BADGE[tp.type] || ''}`}>{TYPE_LABELS[tp.type] || tp.type}</span>
+                                              <span className="tp-name">{tp.name}</span>
+                                              <span className="tp-mode-badge">{MODE_LABELS[tp.mode] || tp.mode}</span>
+                                            </button>
+                                            <button className={`dept-activate-btn ${isActive ? 'dept-activate-btn--on' : ''}`} onClick={() => handleSetActiveTp(tp.id)}>{isActive ? 'Aktiv' : 'Sätt aktiv'}</button>
+                                            <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'tp', id: tp.id, label: tp.name })}>&times;</button>
+                                          </div>
+                                          {tp.access_token && (
+                                            <div className="tp-token-row">
+                                              <span className="tp-token-label">Kiosk-URL</span>
+                                              <code className="tp-token-code">{`${window.location.origin}/?tp=${tp.access_token}`}</code>
+                                              <button
+                                                type="button"
+                                                className="tp-token-copy"
+                                                title="Kopiera URL"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  navigator.clipboard.writeText(`${window.location.origin}/?tp=${tp.access_token}`);
+                                                  e.currentTarget.textContent = '✓';
+                                                  setTimeout(() => { e.currentTarget.textContent = '📋'; }, 1500);
+                                                }}
+                                              >📋</button>
+                                            </div>
+                                          )}
                                         </li>
                                       );
                                     })}
