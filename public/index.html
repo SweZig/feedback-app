@@ -1,16 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sv">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+
+    <!-- PWA / Kiosk: no-zoom, fullscreen på iOS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#1e3a4f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Feedback App" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="description" content="NPS-enkäter för fysiska butiker och digitala kanaler" />
+
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/icon-192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
     <title>Feedback App</title>
 
     <!-- Spara auth-tokens från URL-hashen INNAN Supabase JS laddas och rensar den -->
@@ -27,7 +32,7 @@
     </script>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>Du måste aktivera JavaScript för att köra appen.</noscript>
     <div id="root"></div>
   </body>
 </html>
