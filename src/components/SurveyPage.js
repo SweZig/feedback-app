@@ -26,6 +26,7 @@ function SurveyPage({ activeCustomer }) {
 
   const config = getEffectiveConfig(activeCustomer, activeTpId);
   const {
+    npsQuestion = 'På en skala från 0–10, hur troligt är det att du skulle rekommendera oss till vänner och bekanta?',
     freeTextEnabled = true,
     predefinedAnswersEnabled = false,
     predefinedAnswers = [],
@@ -129,7 +130,7 @@ function SurveyPage({ activeCustomer }) {
 
   return (
     <form className="survey-form" onSubmit={handleSubmit}>
-      <h2>På en skala från 0–10, hur troligt är det att du skulle rekommendera oss till vänner och bekanta?</h2>
+      <h2>{npsQuestion}</h2>
       <ScoreSelector
         value={score}
         onChange={(val) => {
