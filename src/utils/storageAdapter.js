@@ -367,12 +367,21 @@ export async function saveResponse(response) {
   if (idx >= 0) { all[idx] = enriched; } else { all.push(enriched); }
   localStorage.setItem('responses', JSON.stringify(all));
 
-  // Skriv även till npsResponses-nyckeln (format som ReportPage/storage.js förväntar sig)
+  // Skriv även till npsResponses-nyckeln i det format storage.js/ReportPage förväntar sig:
+  // - timestamp som millisekunder (för tidsfiltrering)
+  // - predefinedAnswer som sträng (inte array)
+  // - customerId för kedjefiltrering
   const npsAll = JSON.parse(localStorage.getItem('npsResponses') || '[]');
   const npsEnriched = {
-    ...enriched,
-    timestamp:  response.respondedAt || new Date().toISOString(), // ReportPage läser r.timestamp
-    customerId: response.chainId,   // ReportPage filtrerar på customerId
+    id:               response.id,
+    score:            score,
+    comment:          response.comment || '',
+    predefinedAnswer: response.selectedAnswers?.[0] || '',
+    customerId:       response.chainId,
+    touchpointId:     response.touchpointId,
+    followUpEmail:    response.followUpEmail || '',
+    timestamp:        new Date(response.respondedAt || Date.now()).getTime(),
+    nps_category:     nps_category,
   };
   const npsIdx = npsAll.findIndex(r => r.id === response.id);
   if (npsIdx >= 0) { npsAll[npsIdx] = npsEnriched; } else { npsAll.push(npsEnriched); }
