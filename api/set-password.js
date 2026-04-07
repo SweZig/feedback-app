@@ -7,12 +7,20 @@ const supabaseAdmin = createClient(
 );
 
 export default async function handler(req, res) {
+  // CORS-headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { userId, password, organizationId, role } = req.body;
-  console.log('[set-password] userId:', userId, 'organizationId:', organizationId, 'role:', role);
 
   if (!userId || !password || !organizationId || !role) {
     return res.status(400).json({ error: 'userId, password, organizationId och role krävs' });
@@ -29,7 +37,6 @@ export default async function handler(req, res) {
     });
 
     if (passwordError) throw passwordError;
-    console.log('[set-password] lösenord satt, email:', userData?.user?.email);
 
     // Säkerställ att användaren finns i users-tabellen
     const email = userData?.user?.email;
@@ -37,11 +44,7 @@ export default async function handler(req, res) {
       .from('users')
       .upsert({ id: userId, email }, { onConflict: 'id' });
 
-    if (usersError) {
-      console.error('[set-password] users upsert fel:', usersError);
-      throw usersError;
-    }
-    console.log('[set-password] users upsert OK');
+    if (usersError) throw usersError;
 
     // Skapa org_members-rad
     const { error: memberError } = await supabaseAdmin
@@ -53,7 +56,6 @@ export default async function handler(req, res) {
       }, { onConflict: 'organization_id,user_id' });
 
     if (memberError) throw memberError;
-    console.log('[set-password] org_members upsert OK');
 
     return res.status(200).json({ success: true });
   } catch (err) {
