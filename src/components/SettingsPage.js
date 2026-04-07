@@ -13,7 +13,6 @@ import { parseBackupFile, importSelectedBackup } from '../utils/backup';
 import MigrationTool from './MigrationTool';
 import './SettingsPage.css';
 import { supabase } from '../utils/supabaseClient';
-import { getAssembledCustomers } from '../utils/storageAdapter';
 
 // ── Supabase-synkhjälpare ─────────────────────────────────────
 async function syncChainToSupabase(chain) {
@@ -584,41 +583,24 @@ export default function SettingsPage({ onSettingsChange }) {
   // Punkt 6: visa migration bara om inte redan gjord
   const migrationDone = !!localStorage.getItem('migrated_at');
 
-  async function loadChainsFromSupabase() {
-    try {
-      setLoadingChains(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setChains(getChains()); return; }
-      const { data: memberships = [] } = await supabase
-        .from('org_members').select('organization_id').eq('user_id', user.id);
-      const orgIds = memberships.map(m => m.organization_id);
-      if (orgIds.length === 0) { setChains(getChains()); return; }
-      const assembled = await getAssembledCustomers(orgIds);
-      // Bevara activeTouchpointId från localStorage per kedja
-      const localChains = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
-      assembled.forEach(c => {
-        const lc = localChains.find(l => l.id === c.id);
-        c.activeTouchpointId = lc?.activeTouchpointId || null;
-      });
-      setChains(assembled);
-      setSelectedExportIds(assembled.map(c => c.id));
-      // Sätt activeId till sparad kedja eller första
+  // Initialisera kedjor från prop (redan laddade av App.js) vid mount
+  React.useEffect(() => {
+    if (initialChains && initialChains.length > 0) {
+      setChains(initialChains);
+      setSelectedExportIds(initialChains.map(c => c.id));
       const savedId = getActiveChainId();
-      const validId = assembled.find(c => c.id === savedId) ? savedId : (assembled[0]?.id || '');
+      const validId = initialChains.find(c => c.id === savedId) ? savedId : (initialChains[0]?.id || '');
       setActiveId(validId);
-    } catch (e) {
-      console.error('[SettingsPage] loadChains:', e);
+      setLoadingChains(false);
+    } else {
+      // Fallback: ladda från Supabase om inga kedjor skickades ner
       setChains(getChains());
-    } finally {
       setLoadingChains(false);
     }
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  React.useEffect(() => { loadChainsFromSupabase(); }, []);
+  }, [initialChains]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function refresh() {
-    loadChainsFromSupabase();
+    // Vid refresh — trigga App.js att ladda om, vilket skickar nya initialChains hit
     onSettingsChange();
   }
 
@@ -721,28 +703,44 @@ export default function SettingsPage({ onSettingsChange }) {
   async function handleConfigChange(type, newConfig) {
     if (!active) return;
     const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
-    updateChain(active.id, { [key]: newConfig });
-    const uc = getChains().find(c => c.id === active.id);
 
-    // Hämta touchpoints från Supabase (localStorage kan vara tom på feedbackapp.store)
+    // Bygg den uppdaterade config-JSONB direkt från active (som redan kommit från Supabase)
+    const updatedConfig = {
+      physicalConfig: active.physicalConfig,
+      onlineConfig:   active.onlineConfig,
+      otherConfig:    active.otherConfig,
+      enpsConfig:     active.enpsConfig,
+      [key]: newConfig,
+    };
+
+    // Spara kedja-config direkt till Supabase (undviker localStorage-beroende)
+    const { error: chainErr } = await supabase
+      .from('chains')
+      .update({ config: updatedConfig })
+      .eq('id', active.id);
+    if (chainErr) console.error('[Settings] handleConfigChange chain:', chainErr.message);
+
+    // Hämta touchpoints från Supabase och propagera config_override
     const { data: sbTouchpoints = [] } = await supabase
       .from('touchpoints')
-      .select('*')
+      .select('id, type')
       .eq('chain_id', active.id)
       .is('deleted_at', null);
 
     const affected = sbTouchpoints.filter(t => (t.type || 'physical') === type);
 
-    await Promise.all([
-      uc ? syncChainToSupabase(uc) : Promise.resolve(),
-      ...affected.map(tp =>
+    if (affected.length > 0) {
+      await Promise.all(affected.map(tp =>
         supabase.from('touchpoints')
           .update({ config_override: newConfig })
           .eq('id', tp.id)
-      ),
-    ]);
+      ));
+    }
 
-    setChains(getChains()); onSettingsChange();
+    // Uppdatera även localStorage för konsistens (om data finns där)
+    updateChain(active.id, { [key]: newConfig });
+
+    onSettingsChange();
   }
 
   function handleApplyToAll(type) {

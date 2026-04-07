@@ -42,7 +42,7 @@ function SimulationBanner() {
   );
 }
 
-function AppInner({ user, activeCustomer, onRefresh, onChainChange }) {
+function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange }) {
   const [page, setPage]             = useState('survey');
   const [refreshKey, setRefreshKey] = useState(0);
   const { can, simulatedRole }      = useRole();
@@ -106,6 +106,7 @@ function AppInner({ user, activeCustomer, onRefresh, onChainChange }) {
           <SettingsPage
             onSettingsChange={handleSettingsChange}
             onChainSelect={onChainChange}
+            initialChains={allCustomers}
           />
         )}
         {page === 'settings' && !can('manage_chains') && (
@@ -130,6 +131,7 @@ function App() {
   const [orgId, setOrgId]                   = useState(null);
   const [allOrgIds, setAllOrgIds]           = useState([]);
   const [activeCustomer, setActiveCustomer] = useState(null);
+  const [allCustomers, setAllCustomers]     = useState([]);
   const debounceRef                         = useRef(null);
   const allOrgIdsRef                        = useRef([]);
 
@@ -158,6 +160,7 @@ function App() {
       active.activeTouchpointId =
         localChain?.activeTouchpointId || active.touchpoints?.[0]?.id || null;
 
+      setAllCustomers(customers);
       setActiveCustomer(active);
     } catch (e) {
       console.error('[App] loadActiveCustomer:', e);
@@ -234,6 +237,7 @@ function App() {
       <AppInner
         user={user}
         activeCustomer={activeCustomer}
+        allCustomers={allCustomers}
         onRefresh={handleRefresh}
         onChainChange={handleChainChange}
       />
