@@ -691,15 +691,25 @@ export default function SettingsPage({ onSettingsChange }) {
     const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
     updateChain(active.id, { [key]: newConfig });
     const uc = getChains().find(c => c.id === active.id);
-    if (uc) {
-      // Vänta på att Supabase-skrivningarna är klara innan omladdning
-      const affected = (uc.touchpoints || []).filter(t => t.type === type);
-      affected.forEach(tp => updateTouchpoint(active.id, tp.id, { configOverride: newConfig }));
-      await Promise.all([
-        syncChainToSupabase(uc),
-        ...affected.map(tp => syncTouchpointToSupabase({ ...tp, configOverride: newConfig }, active.id)),
-      ]);
-    }
+
+    // Hämta touchpoints från Supabase (localStorage kan vara tom på feedbackapp.store)
+    const { data: sbTouchpoints = [] } = await supabase
+      .from('touchpoints')
+      .select('*')
+      .eq('chain_id', active.id)
+      .is('deleted_at', null);
+
+    const affected = sbTouchpoints.filter(t => (t.type || 'physical') === type);
+
+    await Promise.all([
+      uc ? syncChainToSupabase(uc) : Promise.resolve(),
+      ...affected.map(tp =>
+        supabase.from('touchpoints')
+          .update({ config_override: newConfig })
+          .eq('id', tp.id)
+      ),
+    ]);
+
     setChains(getChains()); onSettingsChange();
   }
 
