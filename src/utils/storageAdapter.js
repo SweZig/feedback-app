@@ -389,6 +389,12 @@ export async function saveResponse(response) {
 
   // ── Supabase ──
   try {
+    // Bygg metadata — inkludera followUpEmail om det finns
+    const metadata = { ...(response.metadata ?? {}) };
+    if (response.followUpEmail?.trim()) {
+      metadata.followUpEmail = response.followUpEmail.trim();
+    }
+
     const payload = {
       id:            response.id,
       touchpoint_id: response.touchpointId,
@@ -397,7 +403,7 @@ export async function saveResponse(response) {
       nps_category:  nps_category,
       session_id:    response.sessionId ?? null,
       responded_at:  response.respondedAt ?? new Date().toISOString(),
-      metadata:      response.metadata ?? {},
+      metadata,
     };
 
     const { data: insertedResponse, error: respError } = await supabase
@@ -408,11 +414,12 @@ export async function saveResponse(response) {
 
     if (respError) throw respError;
 
-    // Spara valda svarsalternativ
-    if (response.selectedAnswers?.length > 0) {
-      const answerPayload = response.selectedAnswers.map(answerId => ({
-        response_id:          insertedResponse.id,
-        predefined_answer_id: answerId,
+    // Spara valda svarsalternativ som text (answer_text), inte UUID
+    const selectedTexts = (response.selectedAnswers || []).filter(t => t);
+    if (selectedTexts.length > 0) {
+      const answerPayload = selectedTexts.map(text => ({
+        response_id: insertedResponse.id,
+        answer_text: text,
       }));
 
       const { error: answersError } = await supabase
@@ -689,7 +696,7 @@ export async function hydrateResponsesFromSupabase(chainId) {
   try {
     const { data: responses = [], error } = await supabase
       .from('responses')
-      .select('*, response_answers(*), response_comments(*)')
+      .select('*, response_answers(answer_text), response_comments(*)')
       .eq('chain_id', chainId)
       .order('responded_at', { ascending: false });
 
@@ -700,11 +707,11 @@ export async function hydrateResponsesFromSupabase(chainId) {
       id:               r.id,
       score:            r.score,
       comment:          r.response_comments?.[0]?.comment || '',
-      predefinedAnswer: r.response_answers?.[0]?.predefined_answer_id || '',
+      predefinedAnswer: r.response_answers?.[0]?.answer_text || '',
       customerId:       r.chain_id,
       touchpointId:     r.touchpoint_id,
       timestamp:        new Date(r.responded_at).getTime(),
-      followUpEmail:    '',
+      followUpEmail:    r.metadata?.followUpEmail || '',
       nps_category:     r.nps_category,
     }));
 

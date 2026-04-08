@@ -82,7 +82,7 @@ function SurveyPage({ activeCustomer }) {
     return () => clearInterval(timerRef.current);
   }, [submitted, countdownSeconds]);
 
-  async function submit(s, c, pa) {
+  async function submit(s, c, pa, email = '') {
     await saveResponse({
       id:              crypto.randomUUID(),
       touchpointId:    activeTpId,
@@ -90,6 +90,7 @@ function SurveyPage({ activeCustomer }) {
       score:           s,
       comment:         c || '',
       selectedAnswers: pa ? [pa] : [],
+      followUpEmail:   email,
       sessionId:       crypto.randomUUID(),
       respondedAt:     new Date().toISOString(),
       metadata:        {},
@@ -100,7 +101,7 @@ function SurveyPage({ activeCustomer }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (score === null) return;
-    submit(score, freeTextEnabled ? comment : '', predefinedAnswer);
+    submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
   }
 
   function TpBadge() {

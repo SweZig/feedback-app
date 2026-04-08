@@ -64,10 +64,14 @@ function resolveKioskConfig(chain, tp) {
 }
 
 // ── Spara svar anonymt ──
-async function saveKioskResponse({ touchpointId, chainId, score, comment, selectedAnswer }) {
+async function saveKioskResponse({ touchpointId, chainId, score, comment, selectedAnswer, followUpEmail }) {
   const nps_category =
     score <= 6 ? 'detractor' :
     score <= 8 ? 'passive'   : 'promoter';
+
+  // Bygg metadata — inkludera followUpEmail om det finns
+  const metadata = {};
+  if (followUpEmail?.trim()) metadata.followUpEmail = followUpEmail.trim();
 
   const { data: resp, error: respError } = await supabase
     .from('responses')
@@ -78,7 +82,7 @@ async function saveKioskResponse({ touchpointId, chainId, score, comment, select
       nps_category,
       session_id:    crypto.randomUUID(),
       responded_at:  new Date().toISOString(),
-      metadata:      {},
+      metadata,
     })
     .select()
     .single();
@@ -92,12 +96,12 @@ async function saveKioskResponse({ touchpointId, chainId, score, comment, select
     });
   }
 
-  if (selectedAnswer) {
-    // Hitta predefined_answer_id om det är text
-    await supabase.from('response_comments').insert({
+  // Spara fördefinierat svar som answer_text i response_answers
+  if (selectedAnswer?.trim()) {
+    await supabase.from('response_answers').insert({
       response_id: resp.id,
-      comment:     `[Svar: ${selectedAnswer}]`,
-    }).catch(() => {}); // ignorera fel här — kommentar är nice-to-have
+      answer_text: selectedAnswer.trim(),
+    }).catch(e => console.error('[KioskPage] response_answers insert:', e));
   }
 
   return resp;
@@ -181,7 +185,7 @@ export default function KioskPage({ accessToken }) {
     return () => clearInterval(timerRef.current);
   }, [submitted, countdownSeconds]);
 
-  async function submit(s, c, pa) {
+  async function submit(s, c, pa, email = '') {
     if (!kioskData) return;
     try {
       await saveKioskResponse({
@@ -190,6 +194,7 @@ export default function KioskPage({ accessToken }) {
         score:          s,
         comment:        c || '',
         selectedAnswer: pa || null,
+        followUpEmail:  email || '',
       });
     } catch (e) {
       console.error('[KioskPage] saveResponse:', e);
@@ -200,7 +205,7 @@ export default function KioskPage({ accessToken }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (score === null) return;
-    submit(score, freeTextEnabled ? comment : '', predefinedAnswer);
+    submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
   }
 
   // ── Laddning ──

@@ -243,7 +243,7 @@ export default function ReportPage({ activeCustomer }) {
     let cancelled = false;
     supabase
       .from('responses')
-      .select('*, response_answers(predefined_answer_id, predefined_answers(text)), response_comments(comment)')
+      .select('*, response_answers(answer_text), response_comments(comment)')
       .eq('chain_id', customerId)
       .order('responded_at', { ascending: false })
       .then(({ data = [], error }) => {
@@ -253,10 +253,11 @@ export default function ReportPage({ activeCustomer }) {
           id:               r.id,
           score:            r.score,
           comment:          (Array.isArray(r.response_comments) ? r.response_comments[0]?.comment : r.response_comments?.comment) || '',
-          predefinedAnswer: r.response_answers?.[0]?.predefined_answers?.text || '',
+          predefinedAnswer: r.response_answers?.[0]?.answer_text || '',
           customerId:       r.chain_id,
           touchpointId:     r.touchpoint_id,
           timestamp:        new Date(r.responded_at).getTime(),
+          followUpEmail:    r.metadata?.followUpEmail || '',
           nps_category:     r.nps_category,
         }));
         setSupabaseResponses(formatted);
