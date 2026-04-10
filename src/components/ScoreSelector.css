@@ -13,12 +13,14 @@
 .score-buttons {
   display: flex;
   gap: 0.35rem;
+  padding: 0 1.5vw;
 }
 
 .score-btn {
   flex: 1;
   aspect-ratio: 1;
   min-width: 0;
+  max-width: clamp(52px, 7.5vw, 96px);
   border: 2px solid transparent;
   border-radius: 8px;
   font-size: 1rem;
