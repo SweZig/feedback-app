@@ -39,7 +39,6 @@ function PredefinedGroup({ responses }) {
   // Gruppera per betyg, sortera betyg stigande
   const groups = {};
   responses.forEach(r => {
-    if (!r.predefinedAnswer) return;
     if (!groups[r.score]) groups[r.score] = [];
     groups[r.score].push(r);
   });
