@@ -1,5 +1,21 @@
+import { useState } from 'react';
 import { categorize } from '../utils/npsCalculations';
 import './CommentList.css';
+
+function CopyEmailButton({ email }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy() {
+    navigator.clipboard.writeText(email).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <button className="comment-followup-copy" onClick={handleCopy} title="Kopiera e-postadress">
+      {copied ? '✓' : '📋'}
+    </button>
+  );
+}
 
 function CommentList({ responses }) {
   const withContent = responses
@@ -33,6 +49,7 @@ function CommentList({ responses }) {
                 <span className="comment-followup-icon">✉</span>
                 <span className="comment-followup-email">{r.followUpEmail}</span>
                 <span className="comment-followup-label">vill bli kontaktad</span>
+                <CopyEmailButton email={r.followUpEmail} />
               </div>
             )}
           </li>

@@ -92,4 +92,24 @@
 
 .comment-followup-label {
   color: var(--color-text-light);
+  flex: 1;
+}
+
+.comment-followup-copy {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #f39c12;
+  border-radius: 5px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--color-text-light);
+  line-height: 1.4;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.comment-followup-copy:hover {
+  background: #f39c12;
+  color: #fff;
 }
