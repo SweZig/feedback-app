@@ -105,7 +105,8 @@ function CommentList({ responses }) {
 
   const followUps  = withContent.filter(r => r.followUpEmail);
   const freeTexts  = withContent.filter(r => r.comment && !r.followUpEmail);
-  const predefined = withContent.filter(r => r.predefinedAnswer && !r.followUpEmail);
+  // Alla svar exkl. follow-ups — grupperas per betyg oavsett om de har svarsalternativ
+  const allScored  = responses.filter(r => !r.followUpEmail);
 
   return (
     <div className="comments">
@@ -173,10 +174,11 @@ function CommentList({ responses }) {
         </div>
       )}
 
-      {/* ── Fördefinierade svar (grupperade, expand/collapse) ── */}
-      {predefined.length > 0 && (
+      {/* ── Alla svar per betyg (expand/collapse) ── */}
+      {allScored.length > 0 && (
         <div className="comments-section">
-          <PredefinedGroup responses={predefined} />
+          <p className="comments-section-label">Alla svar per betyg</p>
+          <PredefinedGroup responses={allScored} />
         </div>
       )}
     </div>
