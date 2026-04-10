@@ -1,5 +1,14 @@
 .score-selector {
   margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.score-scale-wrapper {
+  display: inline-flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: calc(11 * clamp(52px, 7.5vw, 96px) + 10 * 0.35rem + 3vw);
 }
 
 .score-labels {
