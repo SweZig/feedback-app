@@ -32,35 +32,40 @@ function CopyEmailButton({ email }) {
 function PredefinedGroup({ responses }) {
   const [openGroups, setOpenGroups] = useState({});
 
-  function toggleGroup(text) {
-    setOpenGroups(prev => ({ ...prev, [text]: !prev[text] }));
+  function toggleGroup(score) {
+    setOpenGroups(prev => ({ ...prev, [score]: !prev[score] }));
   }
 
+  // Gruppera per betyg, sortera betyg stigande
   const groups = {};
   responses.forEach(r => {
     if (!r.predefinedAnswer) return;
-    if (!groups[r.predefinedAnswer]) groups[r.predefinedAnswer] = [];
-    groups[r.predefinedAnswer].push(r);
+    if (!groups[r.score]) groups[r.score] = [];
+    groups[r.score].push(r);
   });
-  const sorted = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  const sorted = Object.entries(groups).sort((a, b) => Number(a[0]) - Number(b[0]));
   if (sorted.length === 0) return null;
 
   return (
     <div className="predefined-group">
-      {sorted.map(([text, items]) => {
-        const isOpen = openGroups[text];
+      {sorted.map(([score, items]) => {
+        const isOpen = openGroups[score];
+        const cat = categorize(Number(score));
         return (
-          <div key={text} className="predefined-group-section">
-            <button className="predefined-group-toggle" onClick={() => toggleGroup(text)}>
-              <span className="predefined-group-title">{text}</span>
+          <div key={score} className="predefined-group-section">
+            <button className="predefined-group-toggle" onClick={() => toggleGroup(score)}>
+              <span className={`comment-badge comment-badge--${cat}`}>{score}</span>
+              <span className="predefined-group-title">
+                {items.map(r => r.predefinedAnswer).filter((v, i, a) => a.indexOf(v) === i).join(', ')}
+              </span>
               <span className="predefined-group-count">{items.length} st</span>
               <span className="predefined-group-chevron">{isOpen ? '▲' : '▼'}</span>
             </button>
             {isOpen && (
               <ul className="predefined-group-list">
-                {items.map(r => (
+                {items.sort((a, b) => b.timestamp - a.timestamp).map(r => (
                   <li key={r.id} className="predefined-group-item">
-                    <span className={`comment-badge comment-badge--${categorize(r.score)}`}>{r.score}</span>
+                    <span className="predefined-group-answer">{r.predefinedAnswer}</span>
                     <span className="predefined-group-date">
                       {new Date(r.timestamp).toLocaleDateString('sv-SE')}
                     </span>

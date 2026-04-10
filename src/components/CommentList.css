@@ -254,6 +254,12 @@
   flex-shrink: 0;
 }
 
+.predefined-group-answer {
+  font-weight: 600;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
 .predefined-group-comment {
   color: var(--color-text);
   font-style: italic;
