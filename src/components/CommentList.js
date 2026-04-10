@@ -30,34 +30,48 @@ function CopyEmailButton({ email }) {
 
 // ── Fördefinierade svar — grupperad expand/collapse ──
 function PredefinedGroup({ responses }) {
-  const [open, setOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState({});
 
-  const counts = {};
+  function toggleGroup(text) {
+    setOpenGroups(prev => ({ ...prev, [text]: !prev[text] }));
+  }
+
+  const groups = {};
   responses.forEach(r => {
-    if (r.predefinedAnswer) counts[r.predefinedAnswer] = (counts[r.predefinedAnswer] || 0) + 1;
+    if (!r.predefinedAnswer) return;
+    if (!groups[r.predefinedAnswer]) groups[r.predefinedAnswer] = [];
+    groups[r.predefinedAnswer].push(r);
   });
-  const groups = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  if (groups.length === 0) return null;
-
-  const total = responses.filter(r => r.predefinedAnswer).length;
+  const sorted = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  if (sorted.length === 0) return null;
 
   return (
     <div className="predefined-group">
-      <button className="predefined-group-toggle" onClick={() => setOpen(o => !o)}>
-        <span className="predefined-group-title">Fördefinierade svar</span>
-        <span className="predefined-group-count">{total} st</span>
-        <span className="predefined-group-chevron">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <ul className="predefined-group-list">
-          {groups.map(([text, count]) => (
-            <li key={text} className="predefined-group-item">
-              <span className="predefined-group-text">{text}</span>
-              <span className="predefined-group-badge">{count}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {sorted.map(([text, items]) => {
+        const isOpen = openGroups[text];
+        return (
+          <div key={text} className="predefined-group-section">
+            <button className="predefined-group-toggle" onClick={() => toggleGroup(text)}>
+              <span className="predefined-group-title">{text}</span>
+              <span className="predefined-group-count">{items.length} st</span>
+              <span className="predefined-group-chevron">{isOpen ? '▲' : '▼'}</span>
+            </button>
+            {isOpen && (
+              <ul className="predefined-group-list">
+                {items.map(r => (
+                  <li key={r.id} className="predefined-group-item">
+                    <span className={`comment-badge comment-badge--${categorize(r.score)}`}>{r.score}</span>
+                    <span className="predefined-group-date">
+                      {new Date(r.timestamp).toLocaleDateString('sv-SE')}
+                    </span>
+                    {r.comment && <span className="predefined-group-comment">{r.comment}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
