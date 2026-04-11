@@ -232,7 +232,7 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
-  const [supabaseResponses, setSupabaseResponses] = useState(null);
+  const [supabaseResponses, setSupabaseResponses] = useState(undefined);
 
   const customerId = activeCustomer?.id || null;
 
@@ -288,7 +288,7 @@ export default function ReportPage({ activeCustomer }) {
 
   // Använd supabaseResponses (från Supabase) om tillgänglig,
   // annars fallback på localStorage direkt
-  const responses = supabaseResponses !== null
+  const responses = supabaseResponses != null
     ? (dateRange
         ? supabaseResponses.filter(r => {
             const ts = r.timestamp;
@@ -310,7 +310,7 @@ export default function ReportPage({ activeCustomer }) {
   console.log('[ReportPage] touchpoints i activeCustomer:', touchpoints.map(t => t.id));
 
   // For Mätpunkter view: date-filtered only, not tp-filtered
-  const allResponses = supabaseResponses !== null
+  const allResponses = supabaseResponses != null
     ? (dateRange
         ? supabaseResponses.filter(r => {
             const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
