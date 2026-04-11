@@ -328,6 +328,7 @@ export default function ReportPage({ activeCustomer }) {
         : getFilteredResponses(filterDays, customerId, null));
 
   const result = calculateNps(responses);
+  console.log('[ReportPage] allResponses:', allResponses?.length, '| result:', result);
 
   const typeStats = ['physical', 'online', 'other'].map((type) => {
     const tpIds = touchpoints.filter((t) => t.type === type).map((t) => t.id);
