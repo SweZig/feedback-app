@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ScoreSelector from './ScoreSelector';
 import { supabase } from '../utils/supabaseClient';
-import { TYPE_LABELS, getDefaultConfig } from '../utils/settings';
+import { getDefaultConfig } from '../utils/settings';
 import './SurveyPage.css';
 
 const MEGAFON_LOGO = process.env.PUBLIC_URL + '/Megafon_bla_512px.png';
