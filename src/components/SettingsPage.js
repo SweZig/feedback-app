@@ -952,8 +952,8 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                             <span className="customer-drag-handle" onClick={(e) => e.stopPropagation()}>&#x2630;</span>
                             {editingDeptId === d.id ? (
                               <form className="predefined-edit-form" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}
-                                onSubmit={(e) => { e.preventDefault(); if (!editingDeptText.trim()) return; updateDepartment(active.id, d.id, { name: editingDeptText.trim() }); syncDeptToSupabase({ ...d, name: editingDeptText.trim() }, active.id); setEditingDeptId(null); refresh(); }}>
-                                <input className="settings-input" value={editingDeptText} onChange={(e) => setEditingDeptText(e.target.value)} autoFocus onBlur={() => { if (editingDeptText.trim() && editingDeptText.trim() !== d.name) { updateDepartment(active.id, d.id, { name: editingDeptText.trim() }); syncDeptToSupabase({ ...d, name: editingDeptText.trim() }, active.id); refresh(); } setEditingDeptId(null); }} onKeyDown={(e) => { if (e.key === 'Escape') setEditingDeptId(null); }} />
+                                onSubmit={(e) => { e.preventDefault(); if (!editingDeptText.trim()) return; updateDepartment(active.id, d.id, { name: editingDeptText.trim() }); setEditingDeptId(null); refresh(); }}>
+                                <input className="settings-input" value={editingDeptText} onChange={(e) => setEditingDeptText(e.target.value)} autoFocus onBlur={() => setEditingDeptId(null)} onKeyDown={(e) => { if (e.key === 'Escape') setEditingDeptId(null); }} />
                               </form>
                             ) : (
                               <span className="dept-accordion-name" onDoubleClick={(e) => { e.stopPropagation(); setEditingDeptId(d.id); setEditingDeptText(d.name); }} title="Dubbelklicka för att redigera namn">{d.name}</span>
@@ -1004,8 +1004,9 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     navigator.clipboard.writeText(`${window.location.origin}/?tp=${tp.access_token}`);
-                                                    e.currentTarget.textContent = '✓';
-                                                    setTimeout(() => { e.currentTarget.textContent = '📋'; }, 1500);
+                                                    const btn = e.currentTarget;
+                                                    btn.textContent = '✓';
+                                                    setTimeout(() => { if (btn) btn.textContent = '📋'; }, 1500);
                                                   }}
                                                 >📋</button>
                                               </>
