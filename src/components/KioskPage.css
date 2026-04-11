@@ -1,0 +1,269 @@
+/* ═══════════════════════════════════════════════════════
+   KioskPage.css — Layout för 3-stegs kiosk-enkät
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Hjälpklass för centrerade laddning/fel-vyer ── */
+.kiosk-centered {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Grund-layout: header (logo) + innehåll + footer (badge/FA-logo) ── */
+.kiosk-page {
+  min-height: 100vh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header med kedjelogga ── */
+.kiosk-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  background: #fff;
+  border-bottom: 1px solid #e0e8f0;
+  flex-shrink: 0;
+}
+
+.kiosk-chain-logo {
+  max-height: 72px;
+  max-width: 280px;
+  object-fit: contain;
+}
+
+/* ── Steg 1 — NPS-fråga ── */
+.kiosk-step1 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem 4vw;
+  gap: 2.5rem;
+}
+
+.kiosk-question {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e3a4f;
+  text-align: center;
+  max-width: 800px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── Steg 2 — Fritext / fördefinierade svar ── */
+.kiosk-step2 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 2.5rem 4vw;
+  max-width: 700px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.kiosk-step2-label {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e3a4f;
+  margin: 0;
+}
+
+.kiosk-predefined-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.kiosk-predefined-btn {
+  padding: 0.6rem 1.2rem;
+  border: 2px solid #bdc3c7;
+  border-radius: 20px;
+  background: #fff;
+  color: #1e3a4f;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.kiosk-predefined-btn:hover {
+  border-color: #1e3a4f;
+}
+
+.kiosk-predefined-btn--selected {
+  background: #1e3a4f;
+  border-color: #1e3a4f;
+  color: #fff;
+}
+
+.kiosk-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #1e3a4f;
+}
+
+.kiosk-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #bdc3c7;
+  border-radius: 8px;
+  font-size: 1rem;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.kiosk-textarea:focus {
+  outline: none;
+  border-color: #1e3a4f;
+}
+
+.kiosk-followup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #fff8f0;
+  border: 1px solid #f39c12;
+  border-radius: 8px;
+}
+
+.kiosk-followup-icon {
+  font-size: 1.5rem;
+}
+
+.kiosk-followup-text {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #1e3a4f;
+}
+
+.kiosk-followup-input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #bdc3c7;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.kiosk-submit-btn {
+  align-self: flex-start;
+  padding: 0.75rem 2.5rem;
+  background: #1e3a4f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.kiosk-submit-btn:hover {
+  opacity: 0.85;
+}
+
+/* ── Footer — badge + FA-logo ── */
+.kiosk-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid #e0e8f0;
+  flex-shrink: 0;
+}
+
+.kiosk-fa-logo {
+  height: 24px;
+  opacity: 0.6;
+}
+
+/* ── Badge ── */
+.kiosk-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.kiosk-badge-type {
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: #1e3a4f;
+}
+
+.kiosk-badge-type--physical { background: #1e3a4f; }
+.kiosk-badge-type--online   { background: #2980b9; }
+.kiosk-badge-type--enps     { background: #8e44ad; }
+.kiosk-badge-type--other    { background: #7f8c8d; }
+
+.kiosk-badge-dept,
+.kiosk-badge-tp {
+  color: #1e3a4f;
+  font-weight: 500;
+}
+
+.kiosk-badge-sep {
+  color: #bdc3c7;
+}
+
+/* ── Steg 3 — Tack-vy ── */
+.kiosk-thanks {
+  min-height: 100vh;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.kiosk-thanks-megafon {
+  width: 120px;
+  object-fit: contain;
+}
+
+.kiosk-thanks-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  margin: 0;
+}
+
+.kiosk-thanks-sub {
+  font-size: 1.1rem;
+  color: #7a9aaa;
+  margin: 0;
+}
+
+.kiosk-thanks-countdown {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #1e3a4f;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.kiosk-thanks-falogo {
+  height: 36px;
+  opacity: 0.5;
+  margin-top: 1rem;
+}
