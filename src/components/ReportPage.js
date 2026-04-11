@@ -261,6 +261,7 @@ export default function ReportPage({ activeCustomer }) {
           nps_category:     r.nps_category,
         }));
         setSupabaseResponses(formatted);
+        console.log('[ReportPage] customerId:', customerId, '| svar:', formatted.length, '| fel:', error?.message || 'inget');
       });
     return () => { cancelled = true; };
   }, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
