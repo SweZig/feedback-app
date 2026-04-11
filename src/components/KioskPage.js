@@ -332,9 +332,10 @@ export default function KioskPage({ accessToken }) {
             </div>
           )}
 
-          <button className="kiosk-submit-btn" type="submit">Skicka</button>
+          {(freeTextEnabled || showFollowUp) && (
+            <button className="kiosk-submit-btn" type="submit">Skicka</button>
+          )}
         </form>
-
         <div className="kiosk-footer">
           <TpBadge tp={tp} dept={dept} />
           <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
