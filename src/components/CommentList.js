@@ -144,7 +144,12 @@ function CommentList({ responses }) {
                       <span className="comment-resolved-text">{isResolved ? 'Hanterad ✓' : 'Hantera'}</span>
                     </label>
                   </div>
-                  {r.comment && <p className="comment-text" style={{ marginTop: '0.4rem' }}>{r.comment}</p>}
+                  {r.predefinedAnswer && (
+                    <span className="comment-predefined" style={{ marginTop: '0.4rem', display: 'inline-block' }}>
+                      {r.predefinedAnswer}
+                    </span>
+                  )}
+                  {r.comment && <p className="comment-text" style={{ marginTop: '0.3rem' }}>{r.comment}</p>}
                 </li>
               );
             })}
