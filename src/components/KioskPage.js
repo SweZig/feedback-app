@@ -251,12 +251,14 @@ export default function KioskPage({ accessToken }) {
   }
 
   // ── Badge ──
+  const TYPE_SHORT = { physical: 'F', online: 'O', enps: 'eNPS', other: 'Ö' };
+
   function TpBadge() {
     return (
       <div className="survey-dept-badge">
         {tp.type && (
           <span className={`survey-dept-type survey-dept-type--${tp.type}`}>
-            {TYPE_LABELS[tp.type]}
+            {TYPE_SHORT[tp.type] || tp.type}
           </span>
         )}
         {dept && <span className="survey-dept-name">{dept.name}</span>}
@@ -272,7 +274,7 @@ export default function KioskPage({ accessToken }) {
 
   // ── Enkätvy ──
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f4f7' }}>
+    <div style={{ minHeight: '100vh', background: '#fff' }}>
       {/* Logotyp — ingen navigation */}
       <div style={{
         display: 'flex', justifyContent: 'center', padding: '1rem',
@@ -288,7 +290,7 @@ export default function KioskPage({ accessToken }) {
 
       {/* Enkätformulär */}
       <form className="survey-form" onSubmit={handleSubmit}>
-        <h2>{npsQuestion}</h2>
+        <h2 style={{ fontSize: "1.35rem" }}>{npsQuestion}</h2>
         <ScoreSelector
           value={score}
           onChange={val => {
