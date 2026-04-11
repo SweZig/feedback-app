@@ -260,7 +260,6 @@ export default function KioskPage({ accessToken }) {
         <h2 className="kiosk-thanks-title">Tack för din feedback!</h2>
         <p className="kiosk-thanks-sub">Ditt svar har sparats.</p>
         <div className="kiosk-thanks-countdown">{countdown}</div>
-        <img src={FA_LOGO} alt="Feedback App" className="kiosk-thanks-falogo" />
       </div>
     );
   }
