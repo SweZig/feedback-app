@@ -306,6 +306,9 @@ export default function ReportPage({ activeCustomer }) {
         ? getResponsesByDateRange(fromDate, toDate, customerId, touchpointIds)
         : getFilteredResponses(filterDays, customerId, touchpointIds));
 
+  console.log('[ReportPage] filterMode:', filterMode, '| filterDays:', filterDays, '| touchpointIds:', touchpointIds, '| supabaseResponses:', supabaseResponses?.length, '| responses efter filter:', responses?.length);
+  console.log('[ReportPage] touchpoints i activeCustomer:', touchpoints.map(t => t.id));
+
   // For Mätpunkter view: date-filtered only, not tp-filtered
   const allResponses = supabaseResponses !== null
     ? (dateRange
