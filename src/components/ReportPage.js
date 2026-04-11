@@ -233,8 +233,16 @@ export default function ReportPage({ activeCustomer }) {
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
   const [supabaseResponses, setSupabaseResponses] = useState(undefined);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const customerId = activeCustomer?.id || null;
+
+  // Auto-poll var 60:e sekund
+  useEffect(() => {
+    const interval = setInterval(() => setRefreshKey(k => k + 1), 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Hämta svar direkt från Supabase till state.
   // activeCustomer laddas asynkront — useEffect körs när customerId sätts.
@@ -261,10 +269,11 @@ export default function ReportPage({ activeCustomer }) {
           nps_category:     r.nps_category,
         }));
         setSupabaseResponses(formatted);
+        setIsRefreshing(false);
         console.log('[ReportPage] customerId:', customerId, '| svar:', formatted.length, '| fel:', error?.message || 'inget');
       });
     return () => { cancelled = true; };
-  }, [customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [customerId, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const departments = activeCustomer?.departments || [];
   const touchpoints = activeCustomer?.touchpoints || [];
   const hasDepts = departments.length > 0;
@@ -439,6 +448,11 @@ export default function ReportPage({ activeCustomer }) {
             className={`filter-btn ${!dateRange && filterDays === f.days ? 'filter-btn--active' : ''}`}
             onClick={() => { setDateRange(false); setFilterDays(f.days); }}>{f.label}</button>
         ))}
+        <button
+          className="filter-btn filter-btn--refresh"
+          onClick={() => { setIsRefreshing(true); setRefreshKey(k => k + 1); }}
+          title="Hämta nya svar"
+        >{isRefreshing ? '⟳ Hämtar...' : '⟳ Uppdatera'}</button>
         <button className={`filter-btn ${dateRange ? 'filter-btn--active' : ''}`}
           onClick={() => setDateRange(true)}>Datumintervall</button>
       </div>
