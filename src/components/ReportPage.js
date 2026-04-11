@@ -308,6 +308,8 @@ export default function ReportPage({ activeCustomer }) {
 
   console.log('[ReportPage] filterMode:', filterMode, '| filterDays:', filterDays, '| touchpointIds:', touchpointIds, '| supabaseResponses:', supabaseResponses?.length, '| responses efter filter:', responses?.length);
   console.log('[ReportPage] touchpoints i activeCustomer:', touchpoints.map(t => t.id));
+  console.log('[ReportPage] första svaret:', responses?.[0]);
+  console.log('[ReportPage] activeCustomer.id:', activeCustomer?.id, '| activeCustomer.name:', activeCustomer?.name);
 
   // For Mätpunkter view: date-filtered only, not tp-filtered
   const allResponses = supabaseResponses != null
