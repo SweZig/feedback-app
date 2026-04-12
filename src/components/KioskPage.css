@@ -107,7 +107,7 @@
   opacity: 0.6;
 }
 
-/* ── Sida 2: begränsa bredd till ca 50% av skärmen ── */
+/* ── Sida 2: begränsa bredd till ca 50% och centrera ── */
 .kiosk-wrap .kiosk-step2-label,
 .kiosk-wrap .kiosk-predefined-buttons,
 .kiosk-wrap .kiosk-followup,
@@ -115,6 +115,8 @@
 .kiosk-wrap .kiosk-label,
 .kiosk-wrap .kiosk-textarea {
   max-width: 50vw;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ── Sida 2: rubrik ── */
