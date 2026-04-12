@@ -97,11 +97,13 @@ export async function analyzeFrame(videoEl) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
 
-  // DEBUG — visa vad kameran ser
-  canvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    console.log(`[faceAnalysis] Canvas-bild (${canvas.width}x${canvas.height}):`, url);
-  });
+  // DEBUG — visa canvas-bild direkt på sidan
+  const debugImg = document.createElement('img');
+  debugImg.src = canvas.toDataURL();
+  debugImg.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;width:200px;border:3px solid red;';
+  debugImg.id = 'face-debug-img';
+  document.getElementById('face-debug-img')?.remove();
+  document.body.appendChild(debugImg);
 
   let result;
   try {
