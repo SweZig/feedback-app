@@ -226,8 +226,7 @@ export default function KioskPage({ accessToken }) {
   }, [step, countdownSeconds]);
 
   async function submit(s, c, pa, email = '') {
-    if (!kioskData) { console.error('[Kiosk] submit: kioskData är null'); return; }
-    console.log('[Kiosk] submit anropad:', { s, c, pa, email, touchpointId: kioskData.tp.id, chainId: kioskData.tp.chain_id });
+    if (!kioskData) return;
     try {
       const result = await saveKioskResponse({
         touchpointId:   kioskData.tp.id,
@@ -237,7 +236,6 @@ export default function KioskPage({ accessToken }) {
         selectedAnswer: pa || null,
         followUpEmail:  email || '',
       });
-      console.log('[Kiosk] svar sparat:', result);
       setStep(3);
     } catch (e) {
       console.error('[Kiosk] saveResponse fel:', e);

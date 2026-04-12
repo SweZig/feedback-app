@@ -270,7 +270,6 @@ export default function ReportPage({ activeCustomer }) {
         }));
         setSupabaseResponses(formatted);
         setIsRefreshing(false);
-        console.log('[ReportPage] customerId:', customerId, '| svar:', formatted.length, '| fel:', error?.message || 'inget');
       });
     return () => { cancelled = true; };
   }, [customerId, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -315,11 +314,6 @@ export default function ReportPage({ activeCustomer }) {
         ? getResponsesByDateRange(fromDate, toDate, customerId, touchpointIds)
         : getFilteredResponses(filterDays, customerId, touchpointIds));
 
-  console.log('[ReportPage] filterMode:', filterMode, '| filterDays:', filterDays, '| touchpointIds:', touchpointIds, '| supabaseResponses:', supabaseResponses?.length, '| responses efter filter:', responses?.length);
-  console.log('[ReportPage] touchpoints i activeCustomer:', touchpoints.map(t => t.id));
-  console.log('[ReportPage] första svaret:', responses?.[0]);
-  console.log('[ReportPage] activeCustomer.id:', activeCustomer?.id, '| activeCustomer.name:', activeCustomer?.name);
-
   // For Mätpunkter view: date-filtered only, not tp-filtered
   const allResponses = supabaseResponses != null
     ? (dateRange
@@ -337,7 +331,6 @@ export default function ReportPage({ activeCustomer }) {
         : getFilteredResponses(filterDays, customerId, null));
 
   const result = calculateNps(responses);
-  console.log('[ReportPage] allResponses:', allResponses?.length, '| result:', result);
 
   const typeStats = ['physical', 'online', 'other'].map((type) => {
     const tpIds = touchpoints.filter((t) => t.type === type).map((t) => t.id);
