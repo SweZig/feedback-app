@@ -125,17 +125,17 @@ function generateUUID() {
 }
 function TpBadge({ tp, dept }) {
   return (
-    <div className="survey-dept-badge">
+    <div className="kiosk-badge">
       {tp.type && (
-        <span className={`survey-dept-type survey-dept-type--${tp.type}`}>
+        <span className={`kiosk-badge-type kiosk-badge-type--${tp.type}`}>
           {TYPE_SHORT[tp.type] || tp.type}
         </span>
       )}
-      {dept && <span className="survey-dept-name">{dept.name}</span>}
+      {dept && <span className="kiosk-badge-dept">{dept.name}</span>}
       {dept && tp.name !== dept.name && (
         <>
-          <span className="survey-dept-sep">›</span>
-          <span className="survey-tp-name">{tp.name}</span>
+          <span className="kiosk-badge-sep">›</span>
+          <span className="kiosk-badge-tp">{tp.name}</span>
         </>
       )}
     </div>
@@ -286,17 +286,14 @@ export default function KioskPage({ accessToken }) {
   // ════════════════════════════════════════════════════════
   if (step === 2) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f0f4f7' }}>
-        <div style={{
-          display: 'flex', justifyContent: 'center', padding: '1rem',
-          background: '#fff', borderBottom: '1px solid #e0e8f0',
-        }}>
-          <img src={logo} alt="Logo"
-            style={{ maxHeight: '72px', maxWidth: '280px', objectFit: 'contain' }}
+      <div className="kiosk-page">
+        {/* Header */}
+        <div className="kiosk-header">
+          <img src={logo} alt="Logo" className="kiosk-chain-logo"
             onError={e => { e.target.src = FA_LOGO; }} />
         </div>
 
-        <form className="survey-form" onSubmit={e => {
+        <form className="kiosk-step2" onSubmit={e => {
           e.preventDefault();
           submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
         }}>
@@ -356,9 +353,9 @@ export default function KioskPage({ accessToken }) {
             <button className="kiosk-submit-btn" type="submit">Skicka</button>
           )}
         </form>
-        <div className="survey-meta-row">
+        <div className="kiosk-footer">
           <TpBadge tp={tp} dept={dept} />
-          <img src={FA_LOGO} alt="Feedback App" className="survey-fa-logo" />
+          <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
         </div>
       </div>
     );
@@ -368,22 +365,16 @@ export default function KioskPage({ accessToken }) {
   // STEG 1 — NPS-fråga + betygsskala
   // ════════════════════════════════════════════════════════
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f4f7' }}>
-      {/* Logotyp */}
-      <div style={{
-        display: 'flex', justifyContent: 'center', padding: '1rem',
-        background: '#fff', borderBottom: '1px solid #e0e8f0',
-      }}>
-        <img
-          src={logo}
-          alt="Logo"
-          style={{ maxHeight: '72px', maxWidth: '280px', objectFit: 'contain' }}
-          onError={e => { e.target.src = FA_LOGO; }}
-        />
+    <div className="kiosk-page">
+      {/* Header med kedjelogga */}
+      <div className="kiosk-header">
+        <img src={logo} alt="Logo" className="kiosk-chain-logo"
+          onError={e => { e.target.src = FA_LOGO; }} />
       </div>
 
-      <form className="survey-form" onSubmit={e => e.preventDefault()}>
-        <h2 style={{ fontSize: '1.35rem' }}>{npsQuestion}</h2>
+      {/* NPS-fråga — centrerad med luft */}
+      <div className="kiosk-step1">
+        <h2 className="kiosk-question">{npsQuestion}</h2>
         <ScoreSelector
           value={score}
           onChange={val => {
@@ -396,11 +387,13 @@ export default function KioskPage({ accessToken }) {
           }}
           colorMode={npsColorMode}
         />
-        <div className="survey-meta-row">
-          <TpBadge tp={tp} dept={dept} />
-          <img src={FA_LOGO} alt="Feedback App" className="survey-fa-logo" />
-        </div>
-      </form>
+      </div>
+
+      {/* Footer med badge + FA-logo */}
+      <div className="kiosk-footer">
+        <TpBadge tp={tp} dept={dept} />
+        <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+      </div>
     </div>
   );
 }

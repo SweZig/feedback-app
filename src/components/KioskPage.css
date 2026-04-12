@@ -1,280 +1,135 @@
 /* ═══════════════════════════════════════════════════════
-   KioskPage.css — Layout för 3-stegs kiosk-enkät
+   KioskPage.css — Overrides för Fully Kiosk Browser
+   Alla gap-värden bytta mot margin för WebView-kompatibilitet
    ═══════════════════════════════════════════════════════ */
 
-/* ── Hjälpklass för centrerade laddning/fel-vyer ── */
-.kiosk-centered {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* ── Vit bakgrund överallt ── */
+body {
+  background: #fff !important;
 }
 
-/* ── Grund-layout: header (logo) + innehåll + footer (badge/FA-logo) ── */
-.kiosk-page {
-  min-height: 100vh;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Header med kedjelogga ── */
-.kiosk-header {
+/* ── Logotyp-header ── */
+.kiosk-logo-header {
+  display: -webkit-flex;
   display: flex;
   justify-content: center;
-  align-items: center;
   padding: 1.5rem 2rem;
   background: #fff;
   border-bottom: 1px solid #e0e8f0;
-  flex-shrink: 0;
 }
 
-.kiosk-chain-logo {
-  max-height: 72px;
-  max-width: 280px;
-  object-fit: contain;
+/* ── survey-form: mer luft ── */
+.survey-form {
+  background: #fff !important;
+  box-shadow: none !important;
+  padding: 2rem 2.5rem !important;
+  margin: 1.5rem !important;
+  border-radius: 12px !important;
+  border: 1px solid #e0e8f0 !important;
 }
 
-/* ── Steg 1 — NPS-fråga ── */
-.kiosk-step1 {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: stretch;
-  padding: 3rem 4vw;
-  gap: 2.5rem;
+/* ── Sida 1: NPS-fråga ── */
+.survey-form h2 {
+  font-size: 1.35rem !important;
+  margin-bottom: 2rem !important;
 }
 
-.kiosk-question {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1e3a4f;
-  text-align: center;
-  line-height: 1.4;
-  margin: 0;
-}
-
-/* ── Steg 2 — Fritext / fördefinierade svar ── */
-.kiosk-step2 {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  padding: 2.5rem 4vw;
-  max-width: 700px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-.kiosk-step2-label {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1e3a4f;
-  margin: 0;
-}
-
-.kiosk-predefined-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-}
-
-.kiosk-predefined-btn {
-  padding: 0.6rem 1.2rem;
-  border: 2px solid #bdc3c7;
-  border-radius: 20px;
-  background: #fff;
-  color: #1e3a4f;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
-}
-
-.kiosk-predefined-btn:hover {
-  border-color: #1e3a4f;
-}
-
-.kiosk-predefined-btn--selected {
-  background: #1e3a4f;
-  border-color: #1e3a4f;
-  color: #fff;
-}
-
-.kiosk-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  color: #1e3a4f;
-}
-
-.kiosk-textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #bdc3c7;
-  border-radius: 8px;
-  font-size: 1rem;
-  resize: vertical;
-  font-family: inherit;
-  box-sizing: border-box;
-}
-
-.kiosk-textarea:focus {
-  outline: none;
-  border-color: #1e3a4f;
-}
-
-.kiosk-followup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: #fff8f0;
-  border: 1px solid #f39c12;
-  border-radius: 8px;
-}
-
-.kiosk-followup-icon {
-  font-size: 1.5rem;
-}
-
-.kiosk-followup-text {
-  margin: 0;
-  font-size: 0.95rem;
-  color: #1e3a4f;
-}
-
-.kiosk-followup-input {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid #bdc3c7;
-  border-radius: 6px;
-  font-size: 1rem;
-  font-family: inherit;
-}
-
-.kiosk-submit-btn {
-  align-self: flex-start;
-  padding: 0.75rem 2.5rem;
-  background: #1e3a4f;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.kiosk-submit-btn:hover {
-  opacity: 0.85;
-}
-
-/* ── Footer — badge + FA-logo ── */
-.kiosk-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1.5rem;
-  border-top: 1px solid #e0e8f0;
-  flex-shrink: 0;
-}
-
-.kiosk-fa-logo {
-  height: 96px;
-  opacity: 0.6;
-}
-
-/* ── Badge ── */
-.kiosk-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.8rem;
-}
-
-.kiosk-badge-type {
-  padding: 0.15rem 0.5rem;
-  border-radius: 10px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #fff;
-  background: #1e3a4f;
-}
-
-.kiosk-badge-type--physical { background: #1e3a4f; }
-.kiosk-badge-type--online   { background: #2980b9; }
-.kiosk-badge-type--enps     { background: #8e44ad; }
-.kiosk-badge-type--other    { background: #7f8c8d; }
-
-.kiosk-badge-dept,
-.kiosk-badge-tp {
-  color: #1e3a4f;
-  font-weight: 500;
-}
-
-.kiosk-badge-sep {
-  color: #bdc3c7;
-}
-
-/* ── Steg 3 — Tack-vy ── */
-.kiosk-thanks {
-  min-height: 100vh;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.25rem;
-  text-align: center;
-  padding: 2rem;
-}
-
-.kiosk-thanks-megafon {
-  width: 120px;
-  object-fit: contain;
-}
-
-.kiosk-thanks-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #1e3a4f;
-  margin: 0;
-}
-
-.kiosk-thanks-sub {
-  font-size: 1.1rem;
-  color: #7a9aaa;
-  margin: 0;
-}
-
-.kiosk-thanks-countdown {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: #1e3a4f;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.6rem;
-  font-weight: 700;
-}
-
-.kiosk-thanks-falogo {
-  height: 36px;
-  opacity: 0.5;
-  margin-top: 1rem;
-}
-
-/* Explicit höjd för runda bollar i Fully Kiosk WebView (aspect-ratio stöds ej alltid) */
-.kiosk-step1 .score-buttons {
-  align-items: center;
-}
-
-.kiosk-step1 .score-btn {
+/* ── Sida 1: NPS-bollar — explicit height + margin istället för gap ── */
+.score-btn {
   height: clamp(52px, 7.5vw, 96px) !important;
   border-radius: 50% !important;
   padding: 0 !important;
-  flex-shrink: 0;
+}
+
+/* ── Sida 1: meta-rad (badge + FA-logo) ── */
+.survey-meta-row {
+  margin-top: 1.5rem !important;
+  margin-bottom: 0 !important;
+  padding-top: 1rem !important;
+}
+
+/* ── Sida 2: fördefinierade svar ── */
+.survey-predefined {
+  margin-top: 0.5rem !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.survey-predefined-label {
+  margin-bottom: 0.75rem !important;
+}
+
+.survey-predefined-buttons {
+  display: -webkit-flex !important;
+  display: flex !important;
+  -webkit-flex-wrap: wrap !important;
+  flex-wrap: wrap !important;
+  margin: -0.3rem !important;
+}
+
+.survey-predefined-btn {
+  margin: 0.3rem !important;
+  padding: 0.6rem 1rem !important;
+  font-size: 0.9rem !important;
+}
+
+/* ── Sida 2: uppföljningsruta ── */
+.survey-followup {
+  margin-top: 1.5rem !important;
+  margin-bottom: 1.5rem !important;
+  padding: 1.25rem !important;
+}
+
+.survey-followup-icon {
+  font-size: 1.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.survey-followup-text {
+  margin-bottom: 0.75rem !important;
+}
+
+/* ── Sida 2: Skicka-knapp ── */
+.survey-btn {
+  margin-top: 1rem !important;
+  padding: 0.85rem 2.5rem !important;
+  font-size: 1.05rem !important;
+}
+
+/* ── Sida 3: tack-vy ── */
+.survey-thanks {
+  background: #fff !important;
+  min-height: 100vh !important;
+  display: -webkit-flex !important;
+  display: flex !important;
+  -webkit-flex-direction: column !important;
+  flex-direction: column !important;
+  -webkit-align-items: center !important;
+  align-items: center !important;
+  -webkit-justify-content: center !important;
+  justify-content: center !important;
+  padding: 3rem 2rem !important;
+}
+
+.survey-megafon-logo {
+  width: 120px !important;
+  height: 120px !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.survey-thanks h2 {
+  font-size: 2rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #1e3a4f !important;
+}
+
+.survey-thanks p {
+  font-size: 1.1rem !important;
+  color: #7a9aaa !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.survey-countdown {
+  width: 72px !important;
+  height: 72px !important;
+  font-size: 1.8rem !important;
 }
