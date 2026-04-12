@@ -30,6 +30,10 @@ export function useFaceCamera() {
       // Ladda modeller alltid
       const modelPromise = loadFaceModels();
 
+      // Vänta kort så att window.fully hinner initialiseras
+      await new Promise(r => setTimeout(r, 500));
+      if (cancelled) return;
+
       if (isFullyKiosk()) {
         // ── Fully-läge: ingen videoström behövs ──
         console.log('[useFaceCamera] Fully Kiosk detekterad — använder getCamshot()');
@@ -40,6 +44,15 @@ export function useFaceCamera() {
       }
 
       // ── Webbläsar-läge: getUserMedia ──
+      // Kontrollera igen efter fördröjning — Fully kan ha initialiserats
+      if (isFullyKiosk()) {
+        console.log('[useFaceCamera] Fully detekterad efter fördröjning');
+        setUsingFully(true);
+        await modelPromise;
+        if (!cancelled) setCameraReady(true);
+        return;
+      }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
