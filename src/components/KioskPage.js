@@ -292,6 +292,8 @@ export default function KioskPage({ accessToken }) {
       return;
     }
 
+    console.log('[Kiosk] faceResult:', faceResult);
+
     // Spara demografidata för att skickas med svaret
     setFaceData(faceResult ? {
       ageGroup: faceResult.ageGroup,
