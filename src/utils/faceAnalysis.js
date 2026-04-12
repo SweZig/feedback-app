@@ -97,6 +97,12 @@ export async function analyzeFrame(videoEl) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
 
+  // DEBUG — visa vad kameran ser
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    console.log(`[faceAnalysis] Canvas-bild (${canvas.width}x${canvas.height}):`, url);
+  });
+
   let result;
   try {
     result = await faceapi
