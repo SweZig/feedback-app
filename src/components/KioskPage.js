@@ -335,7 +335,15 @@ export default function KioskPage({ accessToken }) {
       autoPlay
       muted
       playsInline
-      style={{ display: 'none' }}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '1px',
+        height: '1px',
+        opacity: 0,
+        pointerEvents: 'none',
+      }}
       aria-hidden="true"
     />
   );
