@@ -22,7 +22,6 @@
   align-items: center;
   padding: 1.25rem 2rem;
   background: #fff;
-  border-bottom: 1px solid #e0e8f0;
   -webkit-flex-shrink: 0;
   flex-shrink: 0;
 }
@@ -138,9 +137,8 @@
   align-items: center;
   -webkit-justify-content: space-between;
   justify-content: space-between;
-  margin-top: 1.25rem;
+  margin-top: auto;
   padding-top: 1rem;
-  border-top: 1px solid #e0e8f0;
 }
 
 .kiosk-wrap .kiosk-fa-logo {
