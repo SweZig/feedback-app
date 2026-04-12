@@ -46,12 +46,6 @@
   gap: 2.5rem;
 }
 
-/* Tvinga runda bollar i Fully Kiosk Browser */
-.kiosk-step1 .score-btn {
-  border-radius: 50% !important;
-  padding: 0 !important;
-}
-
 .kiosk-question {
   font-size: 1.5rem;
   font-weight: 600;
@@ -271,4 +265,16 @@
   height: 36px;
   opacity: 0.5;
   margin-top: 1rem;
+}
+
+/* Explicit höjd för runda bollar i Fully Kiosk WebView (aspect-ratio stöds ej alltid) */
+.kiosk-step1 .score-buttons {
+  align-items: center;
+}
+
+.kiosk-step1 .score-btn {
+  height: clamp(52px, 7.5vw, 96px) !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  flex-shrink: 0;
 }
