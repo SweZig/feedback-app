@@ -108,6 +108,9 @@
   display: -webkit-flex;
   display: flex;
   padding: 0 1vw;
+  max-width: calc(11 * clamp(52px, 7.5vw, 96px) + 22 * 0.25vw);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .kiosk-wrap .score-btn {
