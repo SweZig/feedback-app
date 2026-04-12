@@ -8,7 +8,6 @@
   display: inline-flex;
   flex-direction: column;
   width: 100%;
-  max-width: calc(11 * clamp(52px, 7.5vw, 96px) + 10 * 0.35rem + 3vw);
 }
 
 .score-labels {
@@ -22,20 +21,20 @@
 .score-buttons {
   display: flex;
   flex-wrap: nowrap;
+  align-items: center;
   justify-content: space-between;
+  gap: 0.3vw;
   padding: 0 1.5vw;
 }
 
 .score-btn {
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-width: 0;
   aspect-ratio: 1;
-  width: clamp(52px, 7.5vw, 96px);
-  height: clamp(52px, 7.5vw, 96px);
-  max-width: clamp(52px, 7.5vw, 96px);
-  margin: 0 0.2vw;
+  max-width: 88px;
   border: 2px solid transparent;
   border-radius: 50%;
-  font-size: 1rem;
+  font-size: clamp(0.65rem, 1.2vw, 1rem);
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.1s, border-color 0.15s, opacity 0.15s;
