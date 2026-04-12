@@ -137,7 +137,7 @@
 
 .survey-predefined { margin-bottom: 1.5rem; }
 .survey-predefined-label { font-size: 0.9rem; font-weight: 600; color: var(--color-text-light); margin: 0 0 0.5rem; }
-.survey-predefined-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.survey-predefined-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.5rem; }
 
 .survey-predefined-btn {
   padding: 0.5rem 1rem; border: 2px solid var(--color-border);
