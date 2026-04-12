@@ -2,26 +2,21 @@
  * useFaceCamera.js
  *
  * Dubbelt läge:
- *  1. Fully Kiosk Browser (Android) — använder fully.getCamshot() via JavaScript API
- *  2. Vanlig webbläsare (PC/Chrome) — använder getUserMedia + video-element
+ *  1. Fully Kiosk Browser — fully.getCamshot() anropas direkt vid capture
+ *  2. Vanlig webbläsare   — getUserMedia + video-element
  *
- * captureAnalysis() returnerar alltid samma format oavsett läge.
+ * Fully-detektering sker vid capture-tillfället, inte vid init.
+ * Ingen fördröjning behövs.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { loadFaceModels, analyzeFrame, analyzeImage, areFaceModelsLoaded } from '../utils/faceAnalysis';
 
-// Kontrollera om vi kör i Fully Kiosk Browser
-function isFullyKiosk() {
-  return typeof window.fully !== 'undefined' && typeof window.fully.getCamshot === 'function';
-}
-
 export function useFaceCamera() {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const videoRef   = useRef(null);
+  const streamRef  = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState(null);
-  const [usingFully, setUsingFully] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,33 +25,24 @@ export function useFaceCamera() {
       // Ladda modeller alltid
       const modelPromise = loadFaceModels();
 
-      if (isFullyKiosk()) {
-        // ── Fully-läge: ingen videoström behövs ──
-        console.log('[useFaceCamera] Fully Kiosk detekterad — använder getCamshot()');
-        setUsingFully(true);
+      // Om Fully finns — ingen videoström behövs
+      if (typeof window.fully !== 'undefined') {
+        console.log('[useFaceCamera] Fully detekterad vid init');
         await modelPromise;
         if (!cancelled) setCameraReady(true);
         return;
       }
 
-      // ── Webbläsar-läge: getUserMedia ──
+      // Webbläsar-läge: getUserMedia
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 320 },
-            height: { ideal: 240 },
-          },
+          video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
           audio: false,
         });
 
-        if (cancelled) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
 
         streamRef.current = stream;
-
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
@@ -68,13 +54,14 @@ export function useFaceCamera() {
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err.name === 'NotAllowedError'
-            ? 'Kamerabehörighet nekad'
-            : err.name === 'NotFoundError'
-              ? 'Ingen kamera hittades'
-              : `Kamerafel: ${err.message}`;
+          const msg = err.name === 'NotAllowedError' ? 'Kamerabehörighet nekad'
+            : err.name === 'NotFoundError' ? 'Ingen kamera hittades'
+            : `Kamerafel: ${err.message}`;
           console.warn('[useFaceCamera]', msg);
           setCameraError(msg);
+          // Sätt ändå cameraReady så modeller laddas
+          await modelPromise;
+          if (!cancelled) setCameraReady(true);
         }
         return;
       }
@@ -96,40 +83,29 @@ export function useFaceCamera() {
   }, []);
 
   const captureAnalysis = useCallback(async () => {
-    console.log('[useFaceCamera] captureAnalysis — cameraReady:', cameraReady, '| fully:', usingFully, '| modelsLoaded:', areFaceModelsLoaded());
-    if (!cameraReady || !areFaceModelsLoaded()) return null;
-
-    try {
-      if (usingFully) {
-        // ── Fully-läge: hämta base64-bild från Fully's kamera ──
-        const base64 = window.fully.getCamshot();
-        console.log('[useFaceCamera] getCamshot returnerade:', base64 ? `${base64.length} tecken` : 'null/tom');
-        if (!base64) return null;
-
-        // Skapa Image-element från base64
-        return await new Promise((resolve) => {
-          const img = new Image();
-          img.onload = async () => {
-            const result = await analyzeImage(img);
-            console.log('[useFaceCamera] analyzeImage resultat:', result);
-            resolve(result);
-          };
-          img.onerror = () => {
-            console.warn('[useFaceCamera] Kunde inte ladda base64-bild');
-            resolve(null);
-          };
-          img.src = base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
-        });
-      } else {
-        // ── Webbläsar-läge: videoframe ──
-        if (!videoRef.current) return null;
-        return await analyzeFrame(videoRef.current);
-      }
-    } catch (err) {
-      console.warn('[useFaceCamera] captureAnalysis fel:', err.message);
+    if (!areFaceModelsLoaded()) {
+      console.log('[useFaceCamera] Modeller ej laddade');
       return null;
     }
-  }, [cameraReady, usingFully]);
+
+    // Fully-läge — kontrollera vid capture-tillfället
+    if (typeof window.fully !== 'undefined' && typeof window.fully.getCamshot === 'function') {
+      const base64 = window.fully.getCamshot();
+      console.log('[useFaceCamera] getCamshot:', base64 ? `${base64.length} tecken` : 'null');
+      if (!base64) return null;
+
+      return await new Promise((resolve) => {
+        const img = new Image();
+        img.onload  = async () => resolve(await analyzeImage(img));
+        img.onerror = () => { console.warn('[useFaceCamera] base64-bild laddades ej'); resolve(null); };
+        img.src = base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+      });
+    }
+
+    // Webbläsar-läge
+    if (!videoRef.current) return null;
+    return await analyzeFrame(videoRef.current);
+  }, []);
 
   return { videoRef, captureAnalysis, cameraReady, cameraError };
 }
