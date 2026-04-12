@@ -134,18 +134,20 @@
   display: flex;
   -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
-  margin: -0.3rem;
-  margin-bottom: 1.2rem;
+  -webkit-justify-content: center;
+  justify-content: center;
+  margin: -0.3rem auto 1.2rem;
+  max-width: 50vw;
 }
 
 .kiosk-wrap .kiosk-predefined-btn {
   margin: 0.3rem;
-  padding: 0.6rem 1.1rem;
+  padding: 0.72rem 1.32rem;
   border: 2px solid #bdc3c7;
   border-radius: 20px;
   background: #fff;
   color: #1e3a4f;
-  font-size: 0.9rem;
+  font-size: 1.08rem;
   cursor: pointer;
 }
 
