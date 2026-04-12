@@ -28,17 +28,64 @@
 }
 
 .kiosk-wrap .kiosk-logo-header img {
-  max-height: 64px;
-  max-width: 260px;
+  max-height: 77px;
+  max-width: 312px;
   object-fit: contain;
 }
 
-/* ── Formulär ── */
-.kiosk-wrap .kiosk-form {
+/* ── Sida 1: div.kiosk-form — full bredd, centrera vertikalt ── */
+.kiosk-wrap div.kiosk-form {
   -webkit-flex: 1;
   flex: 1;
-  padding: 3rem 2.5rem 2rem;
+  padding: 2rem 2.5rem;
   background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+/* ── Sida 2: form.kiosk-form — 50% bredd, centrera horisontellt ── */
+.kiosk-wrap form.kiosk-form {
+  -webkit-flex: 1;
+  flex: 1;
+  padding: 2rem 2.5rem;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-align-items: center;
+  align-items: center;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-step2-label,
+.kiosk-wrap form.kiosk-form .kiosk-followup,
+.kiosk-wrap form.kiosk-form .kiosk-submit-btn,
+.kiosk-wrap form.kiosk-form .kiosk-label {
+  max-width: 50vw;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-predefined-buttons {
+  max-width: 50vw;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-meta-row {
+  width: 100%;
+  max-width: none;
+  -webkit-align-self: stretch;
+  align-self: stretch;
 }
 
 /* ── NPS-fråga ── */
@@ -97,7 +144,7 @@
 }
 
 .kiosk-wrap .kiosk-fa-logo {
-  height: 72px;
+  height: 94px;
   opacity: 0.6;
 }
 
@@ -122,12 +169,12 @@
 
 .kiosk-wrap .kiosk-predefined-btn {
   margin: 0.3rem;
-  padding: 0.6rem 1.1rem;
+  padding: 0.72rem 1.32rem;
   border: 2px solid #bdc3c7;
   border-radius: 20px;
   background: #fff;
   color: #1e3a4f;
-  font-size: 0.9rem;
+  font-size: 1.08rem;
   cursor: pointer;
 }
 
@@ -275,27 +322,13 @@
   font-weight: 700;
 }
 
-/* ── Sida 2: centrera och begränsa formulärets barn (form = steg 2, div = steg 1) ── */
-.kiosk-wrap form.kiosk-form {
+/* ── Laddning/fel-vy ── */
+.kiosk-centered {
+  min-height: 100vh;
+  display: -webkit-flex;
+  display: flex;
   -webkit-align-items: center;
   align-items: center;
-}
-
-.kiosk-wrap form.kiosk-form .kiosk-step2-label,
-.kiosk-wrap form.kiosk-form .kiosk-followup,
-.kiosk-wrap form.kiosk-form .kiosk-submit-btn,
-.kiosk-wrap form.kiosk-form .kiosk-label {
-  max-width: 50vw;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.kiosk-wrap form.kiosk-form .kiosk-textarea {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.kiosk-wrap form.kiosk-form .kiosk-meta-row {
-  width: 100%;
-  max-width: none;
+  -webkit-justify-content: center;
+  justify-content: center;
 }
