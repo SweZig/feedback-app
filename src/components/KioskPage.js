@@ -8,11 +8,17 @@
 //   Steg 1 — NPS-fråga + betygsskala
 //   Steg 2 — Fördefinierade svar och/eller fritext (om aktiverat)
 //   Steg 3 — Tack-vy med nedräkning
+//
+// Kamera:
+//   Ansiktsanalys körs lokalt via face-api.js vid score-val.
+//   Råbild sparas aldrig — demografidata (age_group, gender) sparas anonymt.
+//   Deduplikering: samma person blockeras i 5 min (in-memory, ej persisterat).
 
 import { useState, useEffect, useRef } from 'react';
 import ScoreSelector from './ScoreSelector';
 import { supabase } from '../utils/supabaseClient';
 import { getDefaultConfig } from '../utils/settings';
+import { useFaceCamera } from '../hooks/useFaceCamera';
 import './KioskPage.css';
 
 const MEGAFON_LOGO = process.env.PUBLIC_URL + '/Megafon_bla_512px.png';
@@ -67,7 +73,16 @@ function resolveKioskConfig(chain, tp) {
 }
 
 // ── Spara svar anonymt ──
-async function saveKioskResponse({ touchpointId, chainId, score, comment, selectedAnswer, followUpEmail }) {
+async function saveKioskResponse({
+  touchpointId,
+  chainId,
+  score,
+  comment,
+  selectedAnswer,
+  followUpEmail,
+  ageGroup,   // 'barn' | 'ungdom' | 'vuxen' | 'äldre' | null
+  gender,     // 'man' | 'kvinna' | 'okänt' | null
+}) {
   const nps_category =
     score <= 6 ? 'detractor' :
     score <= 8 ? 'passive'   : 'promoter';
@@ -85,6 +100,8 @@ async function saveKioskResponse({ touchpointId, chainId, score, comment, select
       session_id:    generateUUID(),
       responded_at:  new Date().toISOString(),
       metadata,
+      age_group:     ageGroup  || null,
+      gender:        gender    || null,
     })
     .select()
     .single();
@@ -117,12 +134,12 @@ function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback: manuell UUID v4
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = Math.random() * 16 | 0;
     return (c === 'x' ? r : ((r & 0x3) | 0x8)).toString(16);
   });
 }
+
 function TpBadge({ tp, dept }) {
   return (
     <div className="kiosk-badge">
@@ -148,13 +165,18 @@ export default function KioskPage({ accessToken }) {
   const [error, setError]         = useState(null);
   const [kioskData, setKioskData] = useState(null);
 
-  const [step, setStep]                         = useState(1); // 1 | 2 | 3
+  const [step, setStep]                         = useState(1);
   const [score, setScore]                       = useState(null);
   const [comment, setComment]                   = useState('');
   const [predefinedAnswer, setPredefinedAnswer] = useState('');
   const [followUpEmail, setFollowUpEmail]       = useState('');
   const [countdown, setCountdown]               = useState(6);
+  const [faceData, setFaceData]                 = useState(null);
+  const [showDuplicate, setShowDuplicate]       = useState(false);
   const timerRef = useRef(null);
+
+  // ── Kamera + ansiktsanalys ──
+  const { videoRef, captureAnalysis } = useFaceCamera();
 
   useEffect(() => {
     fetchKioskData(accessToken)
@@ -195,7 +217,6 @@ export default function KioskPage({ accessToken }) {
   const visibleAnswers = score !== null ? getVisibleAnswers(score) : normalizedAnswers;
   const showFollowUp   = followUpEnabled && score !== null && score <= FOLLOW_UP_THRESHOLD;
 
-  // Avgör om steg 2 har något innehåll för givet betyg
   function step2HasContent(val) {
     const answers = getVisibleAnswers(val);
     const willFollowUp = followUpEnabled && val <= FOLLOW_UP_THRESHOLD;
@@ -212,22 +233,27 @@ export default function KioskPage({ accessToken }) {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timerRef.current);
-          setStep(1);
-          setScore(null);
-          setComment('');
-          setPredefinedAnswer('');
-          setFollowUpEmail('');
+          resetSurvey();
           return countdownSeconds;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, countdownSeconds]);
+
+  function resetSurvey() {
+    setStep(1);
+    setScore(null);
+    setComment('');
+    setPredefinedAnswer('');
+    setFollowUpEmail('');
+    setFaceData(null);
+  }
 
   async function submit(s, c, pa, email = '') {
     if (!kioskData) { console.error('[Kiosk] submit: kioskData är null'); return; }
-    console.log('[Kiosk] submit anropad:', { s, c, pa, email, touchpointId: kioskData.tp.id, chainId: kioskData.tp.chain_id });
     try {
       const result = await saveKioskResponse({
         touchpointId:   kioskData.tp.id,
@@ -236,12 +262,47 @@ export default function KioskPage({ accessToken }) {
         comment:        c || '',
         selectedAnswer: pa || null,
         followUpEmail:  email || '',
+        ageGroup:       faceData?.ageGroup || null,
+        gender:         faceData?.gender   || null,
       });
       console.log('[Kiosk] svar sparat:', result);
       setStep(3);
     } catch (e) {
       console.error('[Kiosk] saveResponse fel:', e);
       setError('Kunde inte spara svar: ' + (e?.message || JSON.stringify(e)));
+    }
+  }
+
+  // ── Score-val: kör kameraanalys, kontrollera duplikat, gå vidare ──
+  async function handleScoreSelect(val) {
+    setScore(val);
+
+    // Kameraanalys — blockerar aldrig survey-flödet om kameran ej är tillgänglig
+    let faceResult = null;
+    try {
+      faceResult = await captureAnalysis();
+    } catch (e) {
+      console.warn('[Kiosk] Kameraanalys misslyckades:', e.message);
+    }
+
+    // Duplikathantering — visa meddelande och avbryt
+    if (faceResult?.isDuplicate) {
+      setShowDuplicate(true);
+      setTimeout(() => setShowDuplicate(false), 3000);
+      return;
+    }
+
+    // Spara demografidata för att skickas med svaret
+    setFaceData(faceResult ? {
+      ageGroup: faceResult.ageGroup,
+      gender:   faceResult.gender,
+    } : null);
+
+    // Fortsätt till steg 2 eller spara direkt
+    if (step2HasContent(val)) {
+      setStep(2);
+    } else {
+      submit(val, '', '');
     }
   }
 
@@ -267,17 +328,32 @@ export default function KioskPage({ accessToken }) {
   const { tp, dept } = kioskData;
   const logo = kioskData.chain.custom_logo || FA_LOGO;
 
+  // Dolt videoelement — alltid mountat för att hålla kameraströmmen aktiv
+  const cameraVideo = (
+    <video
+      ref={videoRef}
+      autoPlay
+      muted
+      playsInline
+      style={{ display: 'none' }}
+      aria-hidden="true"
+    />
+  );
+
   // ════════════════════════════════════════════════════════
   // STEG 3 — Tack-vy
   // ════════════════════════════════════════════════════════
   if (step === 3) {
     return (
-      <div className="kiosk-thanks">
-        <img src={MEGAFON_LOGO} alt="Feedback App" className="kiosk-thanks-megafon" />
-        <h2 className="kiosk-thanks-title">Tack för din feedback!</h2>
-        <p className="kiosk-thanks-sub">Ditt svar har sparats.</p>
-        <div className="kiosk-thanks-countdown">{countdown}</div>
-      </div>
+      <>
+        {cameraVideo}
+        <div className="kiosk-thanks">
+          <img src={MEGAFON_LOGO} alt="Feedback App" className="kiosk-thanks-megafon" />
+          <h2 className="kiosk-thanks-title">Tack för din feedback!</h2>
+          <p className="kiosk-thanks-sub">Ditt svar har sparats.</p>
+          <div className="kiosk-thanks-countdown">{countdown}</div>
+        </div>
+      </>
     );
   }
 
@@ -286,78 +362,81 @@ export default function KioskPage({ accessToken }) {
   // ════════════════════════════════════════════════════════
   if (step === 2) {
     return (
-      <div className="kiosk-wrap">
-        <div className="kiosk-logo-header">
-          <img src={logo} alt="Logo"
-            onError={e => { e.target.src = FA_LOGO; }} />
-        </div>
-
-        <form className="kiosk-form" onSubmit={e => {
-          e.preventDefault();
-          submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
-        }}>
-          <p className="kiosk-step2-label">Vad beskriver bäst din upplevelse?</p>
-
-          {predefinedAnswersEnabled && visibleAnswers.length > 0 && (
-            <div className="kiosk-predefined-buttons">
-              {visibleAnswers.map(answer => (
-                <button
-                  key={answer.text}
-                  type="button"
-                  className={`kiosk-predefined-btn ${predefinedAnswer === answer.text ? 'kiosk-predefined-btn--selected' : ''}`}
-                  onClick={() => {
-                    const chosen = predefinedAnswer === answer.text ? '' : answer.text;
-                    setPredefinedAnswer(chosen);
-                    if (!freeTextEnabled && !showFollowUp && chosen !== '') {
-                      submit(score, '', chosen);
-                    }
-                  }}
-                >
-                  {answer.text}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {freeTextEnabled && (
-            <label className="kiosk-label">
-              Kommentar (valfritt)
-              <textarea
-                className="kiosk-textarea"
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                placeholder="Berätta gärna mer..."
-                rows={4}
-              />
-            </label>
-          )}
-
-          {showFollowUp && (
-            <div className="kiosk-followup">
-              <div className="kiosk-followup-icon">✉</div>
-              <p className="kiosk-followup-text">
-                Väldigt tråkigt att höra – vill du att vi kontaktar dig och följer upp ärendet?
-              </p>
-              <input
-                type="email"
-                className="kiosk-followup-input"
-                placeholder="Din e-postadress (valfritt)"
-                value={followUpEmail}
-                onChange={e => setFollowUpEmail(e.target.value)}
-              />
-            </div>
-          )}
-
-          {(freeTextEnabled || showFollowUp) && (
-            <button className="kiosk-submit-btn" type="submit">Skicka</button>
-          )}
-
-          <div className="kiosk-meta-row">
-            <TpBadge tp={tp} dept={dept} />
-            <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+      <>
+        {cameraVideo}
+        <div className="kiosk-wrap">
+          <div className="kiosk-logo-header">
+            <img src={logo} alt="Logo"
+              onError={e => { e.target.src = FA_LOGO; }} />
           </div>
-        </form>
-      </div>
+
+          <form className="kiosk-form" onSubmit={e => {
+            e.preventDefault();
+            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
+          }}>
+            <p className="kiosk-step2-label">Vad beskriver bäst din upplevelse?</p>
+
+            {predefinedAnswersEnabled && visibleAnswers.length > 0 && (
+              <div className="kiosk-predefined-buttons">
+                {visibleAnswers.map(answer => (
+                  <button
+                    key={answer.text}
+                    type="button"
+                    className={`kiosk-predefined-btn ${predefinedAnswer === answer.text ? 'kiosk-predefined-btn--selected' : ''}`}
+                    onClick={() => {
+                      const chosen = predefinedAnswer === answer.text ? '' : answer.text;
+                      setPredefinedAnswer(chosen);
+                      if (!freeTextEnabled && !showFollowUp && chosen !== '') {
+                        submit(score, '', chosen);
+                      }
+                    }}
+                  >
+                    {answer.text}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {freeTextEnabled && (
+              <label className="kiosk-label">
+                Kommentar (valfritt)
+                <textarea
+                  className="kiosk-textarea"
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  placeholder="Berätta gärna mer..."
+                  rows={4}
+                />
+              </label>
+            )}
+
+            {showFollowUp && (
+              <div className="kiosk-followup">
+                <div className="kiosk-followup-icon">✉</div>
+                <p className="kiosk-followup-text">
+                  Väldigt tråkigt att höra – vill du att vi kontaktar dig och följer upp ärendet?
+                </p>
+                <input
+                  type="email"
+                  className="kiosk-followup-input"
+                  placeholder="Din e-postadress (valfritt)"
+                  value={followUpEmail}
+                  onChange={e => setFollowUpEmail(e.target.value)}
+                />
+              </div>
+            )}
+
+            {(freeTextEnabled || showFollowUp) && (
+              <button className="kiosk-submit-btn" type="submit">Skicka</button>
+            )}
+
+            <div className="kiosk-meta-row">
+              <TpBadge tp={tp} dept={dept} />
+              <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+            </div>
+          </form>
+        </div>
+      </>
     );
   }
 
@@ -365,31 +444,34 @@ export default function KioskPage({ accessToken }) {
   // STEG 1 — NPS-fråga + betygsskala
   // ════════════════════════════════════════════════════════
   return (
-    <div className="kiosk-wrap">
-      <div className="kiosk-logo-header">
-        <img src={logo} alt="Logo"
-          onError={e => { e.target.src = FA_LOGO; }} />
-      </div>
+    <>
+      {cameraVideo}
+      <div className="kiosk-wrap">
+        {/* Duplikatvarning — visas som overlay-notis i 3 sekunder */}
+        {showDuplicate && (
+          <div className="kiosk-duplicate-notice">
+            Vi har redan registrerat ditt svar — tack!
+          </div>
+        )}
 
-      <div className="kiosk-form">
-        <h2>{npsQuestion}</h2>
-        <ScoreSelector
-          value={score}
-          onChange={val => {
-            setScore(val);
-            if (step2HasContent(val)) {
-              setStep(2);
-            } else {
-              submit(val, '', '');
-            }
-          }}
-          colorMode={npsColorMode}
-        />
-        <div className="kiosk-meta-row">
-          <TpBadge tp={tp} dept={dept} />
-          <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+        <div className="kiosk-logo-header">
+          <img src={logo} alt="Logo"
+            onError={e => { e.target.src = FA_LOGO; }} />
+        </div>
+
+        <div className="kiosk-form">
+          <h2>{npsQuestion}</h2>
+          <ScoreSelector
+            value={score}
+            onChange={handleScoreSelect}
+            colorMode={npsColorMode}
+          />
+          <div className="kiosk-meta-row">
+            <TpBadge tp={tp} dept={dept} />
+            <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

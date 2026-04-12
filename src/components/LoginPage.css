@@ -107,3 +107,17 @@
   margin: 0;
   text-align: center;
 }
+
+.kiosk-wrap .kiosk-duplicate-notice {
+  position: fixed;
+  bottom: 3vh;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 58, 79, 0.93);
+  color: #fff;
+  padding: 0.9em 2em;
+  border-radius: 10px;
+  font-size: clamp(14px, 2vw, 22px);
+  z-index: 100;
+  white-space: nowrap;
+}
