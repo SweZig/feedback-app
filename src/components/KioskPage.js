@@ -257,7 +257,7 @@ export default function KioskPage({ accessToken }) {
   // ── Fel ──
   if (error) {
     return (
-      <div className="kiosk-centered" style={{ background: '#fff', flexDirection: 'column', gap: '1rem' }}>
+      <div className="kiosk-centered" style={{ background: '#fff', flexDirection: 'column' }}>
         <p style={{ color: '#e74c3c' }}>Kunde inte ladda enkäten.</p>
         <p style={{ color: '#7a9aaa', fontSize: '0.85rem' }}>{error}</p>
       </div>
@@ -286,14 +286,13 @@ export default function KioskPage({ accessToken }) {
   // ════════════════════════════════════════════════════════
   if (step === 2) {
     return (
-      <div className="kiosk-page">
-        {/* Header */}
-        <div className="kiosk-header">
-          <img src={logo} alt="Logo" className="kiosk-chain-logo"
+      <div className="kiosk-wrap">
+        <div className="kiosk-logo-header">
+          <img src={logo} alt="Logo"
             onError={e => { e.target.src = FA_LOGO; }} />
         </div>
 
-        <form className="kiosk-step2" onSubmit={e => {
+        <form className="kiosk-form" onSubmit={e => {
           e.preventDefault();
           submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
         }}>
@@ -352,11 +351,12 @@ export default function KioskPage({ accessToken }) {
           {(freeTextEnabled || showFollowUp) && (
             <button className="kiosk-submit-btn" type="submit">Skicka</button>
           )}
+
+          <div className="kiosk-meta-row">
+            <TpBadge tp={tp} dept={dept} />
+            <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+          </div>
         </form>
-        <div className="kiosk-footer">
-          <TpBadge tp={tp} dept={dept} />
-          <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
-        </div>
       </div>
     );
   }
@@ -365,16 +365,14 @@ export default function KioskPage({ accessToken }) {
   // STEG 1 — NPS-fråga + betygsskala
   // ════════════════════════════════════════════════════════
   return (
-    <div className="kiosk-page">
-      {/* Header med kedjelogga */}
-      <div className="kiosk-header">
-        <img src={logo} alt="Logo" className="kiosk-chain-logo"
+    <div className="kiosk-wrap">
+      <div className="kiosk-logo-header">
+        <img src={logo} alt="Logo"
           onError={e => { e.target.src = FA_LOGO; }} />
       </div>
 
-      {/* NPS-fråga — centrerad med luft */}
-      <div className="kiosk-step1">
-        <h2 className="kiosk-question">{npsQuestion}</h2>
+      <div className="kiosk-form">
+        <h2>{npsQuestion}</h2>
         <ScoreSelector
           value={score}
           onChange={val => {
@@ -387,12 +385,10 @@ export default function KioskPage({ accessToken }) {
           }}
           colorMode={npsColorMode}
         />
-      </div>
-
-      {/* Footer med badge + FA-logo */}
-      <div className="kiosk-footer">
-        <TpBadge tp={tp} dept={dept} />
-        <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+        <div className="kiosk-meta-row">
+          <TpBadge tp={tp} dept={dept} />
+          <img src={FA_LOGO} alt="Feedback App" className="kiosk-fa-logo" />
+        </div>
       </div>
     </div>
   );

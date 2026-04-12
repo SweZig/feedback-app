@@ -1,135 +1,276 @@
 /* ═══════════════════════════════════════════════════════
-   KioskPage.css — Overrides för Fully Kiosk Browser
-   Alla gap-värden bytta mot margin för WebView-kompatibilitet
+   KioskPage.css — Scoped under .kiosk-wrap
    ═══════════════════════════════════════════════════════ */
 
-/* ── Vit bakgrund överallt ── */
-body {
-  background: #fff !important;
+/* ── Ytterhölje ── */
+.kiosk-wrap {
+  min-height: 100vh;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
 }
 
 /* ── Logotyp-header ── */
-.kiosk-logo-header {
+.kiosk-wrap .kiosk-logo-header {
   display: -webkit-flex;
   display: flex;
+  -webkit-justify-content: center;
   justify-content: center;
-  padding: 1.5rem 2rem;
+  -webkit-align-items: center;
+  align-items: center;
+  padding: 1.25rem 2rem;
   background: #fff;
   border-bottom: 1px solid #e0e8f0;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
 }
 
-/* ── survey-form: mer luft ── */
-.survey-form {
-  background: #fff !important;
-  box-shadow: none !important;
-  padding: 2rem 2.5rem !important;
-  margin: 1.5rem !important;
-  border-radius: 12px !important;
-  border: 1px solid #e0e8f0 !important;
+.kiosk-wrap .kiosk-logo-header img {
+  max-height: 64px;
+  max-width: 260px;
+  object-fit: contain;
 }
 
-/* ── Sida 1: NPS-fråga ── */
-.survey-form h2 {
-  font-size: 1.35rem !important;
-  margin-bottom: 2rem !important;
+/* ── Formulär ── */
+.kiosk-wrap .kiosk-form {
+  -webkit-flex: 1;
+  flex: 1;
+  padding: 2rem 2.5rem;
+  background: #fff;
 }
 
-/* ── Sida 1: NPS-bollar — explicit height + margin istället för gap ── */
-.score-btn {
-  height: clamp(52px, 7.5vw, 96px) !important;
-  border-radius: 50% !important;
-  padding: 0 !important;
+/* ── NPS-fråga ── */
+.kiosk-wrap .kiosk-form h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1e3a4f;
+  line-height: 1.45;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
 }
 
-/* ── Sida 1: meta-rad (badge + FA-logo) ── */
-.survey-meta-row {
-  margin-top: 1.5rem !important;
-  margin-bottom: 0 !important;
-  padding-top: 1rem !important;
+/* ── Score selector ── */
+.kiosk-wrap .score-selector {
+  margin-bottom: 1.5rem;
 }
 
-/* ── Sida 2: fördefinierade svar ── */
-.survey-predefined {
-  margin-top: 0.5rem !important;
-  margin-bottom: 1.5rem !important;
+/* ── Score buttons — margin istället för gap ── */
+.kiosk-wrap .score-buttons {
+  display: -webkit-flex;
+  display: flex;
+  padding: 0 1vw;
 }
 
-.survey-predefined-label {
-  margin-bottom: 0.75rem !important;
+.kiosk-wrap .score-btn {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+  max-width: clamp(52px, 7.5vw, 96px);
+  height: clamp(52px, 7.5vw, 96px);
+  margin: 0 0.25vw;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.7;
 }
 
-.survey-predefined-buttons {
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-flex-wrap: wrap !important;
-  flex-wrap: wrap !important;
-  margin: -0.3rem !important;
+.kiosk-wrap .score-btn--selected {
+  opacity: 1;
+  border-color: #1e3a4f;
 }
 
-.survey-predefined-btn {
-  margin: 0.3rem !important;
-  padding: 0.6rem 1rem !important;
-  font-size: 0.9rem !important;
+/* ── Meta-rad (badge + FA-logo) ── */
+.kiosk-wrap .kiosk-meta-row {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e8f0;
+}
+
+.kiosk-wrap .kiosk-fa-logo {
+  height: 48px;
+  opacity: 0.6;
+}
+
+/* ── Sida 2: rubrik ── */
+.kiosk-wrap .kiosk-step2-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e3a4f;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+/* ── Sida 2: fördefinierade knappar ── */
+.kiosk-wrap .kiosk-predefined-buttons {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  margin: -0.3rem;
+  margin-bottom: 1.2rem;
+}
+
+.kiosk-wrap .kiosk-predefined-btn {
+  margin: 0.3rem;
+  padding: 0.6rem 1.1rem;
+  border: 2px solid #bdc3c7;
+  border-radius: 20px;
+  background: #fff;
+  color: #1e3a4f;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.kiosk-wrap .kiosk-predefined-btn--selected {
+  background: #1e3a4f;
+  border-color: #1e3a4f;
+  color: #fff;
 }
 
 /* ── Sida 2: uppföljningsruta ── */
-.survey-followup {
-  margin-top: 1.5rem !important;
-  margin-bottom: 1.5rem !important;
-  padding: 1.25rem !important;
+.kiosk-wrap .kiosk-followup {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  background: #fff8f0;
+  border: 1px solid #f39c12;
+  border-radius: 10px;
 }
 
-.survey-followup-icon {
-  font-size: 1.5rem !important;
-  margin-bottom: 0.5rem !important;
+.kiosk-wrap .kiosk-followup-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
-.survey-followup-text {
-  margin-bottom: 0.75rem !important;
+.kiosk-wrap .kiosk-followup-text {
+  font-size: 0.95rem;
+  color: #1e3a4f;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.kiosk-wrap .kiosk-followup-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #f39c12;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: #fff;
+  box-sizing: border-box;
 }
 
 /* ── Sida 2: Skicka-knapp ── */
-.survey-btn {
-  margin-top: 1rem !important;
-  padding: 0.85rem 2.5rem !important;
-  font-size: 1.05rem !important;
+.kiosk-wrap .kiosk-submit-btn {
+  margin-top: 1.25rem;
+  padding: 0.85rem 2.5rem;
+  background: #1e3a4f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Badge ── */
+.kiosk-wrap .kiosk-badge {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.kiosk-wrap .kiosk-badge-type {
+  margin-right: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.kiosk-wrap .kiosk-badge-type--physical { background: #1e3a4f; }
+.kiosk-wrap .kiosk-badge-type--online   { background: #2980b9; }
+.kiosk-wrap .kiosk-badge-type--enps     { background: #8e44ad; }
+.kiosk-wrap .kiosk-badge-type--other    { background: #7f8c8d; }
+
+.kiosk-wrap .kiosk-badge-dept {
+  color: #1e3a4f;
+  font-weight: 500;
+  margin-right: 0.25rem;
+}
+
+.kiosk-wrap .kiosk-badge-sep {
+  color: #bdc3c7;
+  margin-right: 0.25rem;
+}
+
+.kiosk-wrap .kiosk-badge-tp {
+  color: #7a9aaa;
 }
 
 /* ── Sida 3: tack-vy ── */
-.survey-thanks {
-  background: #fff !important;
-  min-height: 100vh !important;
-  display: -webkit-flex !important;
-  display: flex !important;
-  -webkit-flex-direction: column !important;
-  flex-direction: column !important;
-  -webkit-align-items: center !important;
-  align-items: center !important;
-  -webkit-justify-content: center !important;
-  justify-content: center !important;
-  padding: 3rem 2rem !important;
+.kiosk-thanks {
+  min-height: 100vh;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
 }
 
-.survey-megafon-logo {
-  width: 120px !important;
-  height: 120px !important;
-  margin-bottom: 1.5rem !important;
+.kiosk-thanks-megafon {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  margin-bottom: 1.5rem;
 }
 
-.survey-thanks h2 {
-  font-size: 2rem !important;
-  margin-bottom: 0.75rem !important;
-  color: #1e3a4f !important;
+.kiosk-thanks-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
 }
 
-.survey-thanks p {
-  font-size: 1.1rem !important;
-  color: #7a9aaa !important;
-  margin-bottom: 1.5rem !important;
+.kiosk-thanks-sub {
+  font-size: 1.1rem;
+  color: #7a9aaa;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
 }
 
-.survey-countdown {
-  width: 72px !important;
-  height: 72px !important;
-  font-size: 1.8rem !important;
+.kiosk-thanks-countdown {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #1e3a4f;
+  color: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
 }
