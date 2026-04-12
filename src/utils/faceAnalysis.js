@@ -14,7 +14,7 @@
 import * as faceapi from '@vladmandic/face-api';
 
 // Modeller laddas från public/models/ (se download-face-models.ps1)
-const MODEL_PATH = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+const MODEL_PATH = process.env.PUBLIC_URL + '/models';
 
 // Deduplikering: poster äldre än 5 min rensas automatiskt
 const DEDUP_TTL_MS = 5 * 60 * 1000;
@@ -159,6 +159,7 @@ export async function analyzeFrame(videoEl) {
   if (!modelsLoaded || !videoEl) return null;
 
   // Kontrollera att video faktiskt streamar (undviker analys på svart frame)
+  console.log('[faceAnalysis] videoEl.readyState:', videoEl.readyState, 'videoWidth:', videoEl.videoWidth);
   if (videoEl.readyState < 2) return null;
 
   let result;
@@ -178,6 +179,7 @@ export async function analyzeFrame(videoEl) {
     return null;
   }
 
+  console.log('[faceAnalysis] detectSingleFace resultat:', result);
   if (!result) return null;
 
   // Bygg descriptor från normaliserade landmarks
