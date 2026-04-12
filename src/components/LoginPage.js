@@ -91,10 +91,12 @@ function LoginPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Serverfel');
 
-      // Rensa sessionStorage och ladda om
+      // Rensa sessionStorage, localStorage och ladda om
+      // localStorage rensas så att gammal Demo-data inte visas för ny användare
       sessionStorage.removeItem('supabase_auth_type');
       sessionStorage.removeItem('supabase_access_token');
       sessionStorage.removeItem('supabase_refresh_token');
+      localStorage.clear();
       window.history.replaceState(null, '', window.location.pathname);
       window.location.reload();
 
