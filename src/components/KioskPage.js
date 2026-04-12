@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 import ScoreSelector from './ScoreSelector';
 import { supabase } from '../utils/supabaseClient';
 import { getDefaultConfig } from '../utils/settings';
+import './SurveyPage.css';
 import './KioskPage.css';
 
 const MEGAFON_LOGO = process.env.PUBLIC_URL + '/Megafon_bla_512px.png';
@@ -226,9 +227,10 @@ export default function KioskPage({ accessToken }) {
   }, [step, countdownSeconds]);
 
   async function submit(s, c, pa, email = '') {
-    if (!kioskData) return;
+    if (!kioskData) { console.error('[Kiosk] submit: kioskData är null'); return; }
+    console.log('[Kiosk] submit anropad:', { s, c, pa, email, touchpointId: kioskData.tp.id, chainId: kioskData.tp.chain_id });
     try {
-      await saveKioskResponse({
+      const result = await saveKioskResponse({
         touchpointId:   kioskData.tp.id,
         chainId:        kioskData.tp.chain_id,
         score:          s,
@@ -236,6 +238,7 @@ export default function KioskPage({ accessToken }) {
         selectedAnswer: pa || null,
         followUpEmail:  email || '',
       });
+      console.log('[Kiosk] svar sparat:', result);
       setStep(3);
     } catch (e) {
       console.error('[Kiosk] saveResponse fel:', e);
