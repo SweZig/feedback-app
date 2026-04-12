@@ -27,8 +27,9 @@
 .score-btn {
   flex: 1;
   aspect-ratio: 1;
-  min-width: 0;
+  min-width: clamp(52px, 7.5vw, 96px);
   max-width: clamp(52px, 7.5vw, 96px);
+  width: clamp(52px, 7.5vw, 96px);
   height: clamp(52px, 7.5vw, 96px);
   margin: 0 0.2vw;
   border: 2px solid transparent;
