@@ -252,7 +252,7 @@ export default function KioskPage({ accessToken }) {
     setFaceData(null);
   }
 
-  async function submit(s, c, pa, email = '', face = null) {
+  async function submit(s, c, pa, email = '') {
     if (!kioskData) { console.error('[Kiosk] submit: kioskData är null'); return; }
     try {
       const result = await saveKioskResponse({
@@ -262,8 +262,8 @@ export default function KioskPage({ accessToken }) {
         comment:        c || '',
         selectedAnswer: pa || null,
         followUpEmail:  email || '',
-        ageGroup:       face?.ageGroup || null,
-        gender:         face?.gender   || null,
+        ageGroup:       faceData?.ageGroup || null,
+        gender:         faceData?.gender   || null,
       });
       console.log('[Kiosk] svar sparat:', result);
       setStep(3);
@@ -273,40 +273,40 @@ export default function KioskPage({ accessToken }) {
     }
   }
 
-  // ── Score-val: kör kameraanalys, kontrollera duplikat, gå vidare ──
-  async function handleScoreSelect(val) {
+  // ── Score-val: navigera direkt, kör kameraanalys i bakgrunden ──
+  function handleScoreSelect(val) {
     setScore(val);
 
-    // Kameraanalys — blockerar aldrig survey-flödet om kameran ej är tillgänglig
-    let faceResult = null;
-    try {
-      faceResult = await captureAnalysis();
-    } catch (e) {
-      console.warn('[Kiosk] Kameraanalys misslyckades:', e.message);
-    }
-
-    // Duplikathantering — visa meddelande och avbryt
-    if (faceResult?.isDuplicate) {
-      setShowDuplicate(true);
-      setTimeout(() => setShowDuplicate(false), 3000);
-      return;
-    }
-
-    console.log('[Kiosk] faceResult:', faceResult);
-
-    // Spara demografidata för att skickas med svaret
-    setFaceData(faceResult ? {
-      ageGroup: faceResult.ageGroup,
-      gender:   faceResult.gender,
-    } : null);
-
-    // Fortsätt till steg 2 eller spara direkt
+    // Navigera omedelbart — blockerar inte UI
     if (step2HasContent(val)) {
       setStep(2);
-    } else {
-      submit(val, '', '', '', faceResult);
     }
+
+    // Kameraanalys asynkront i bakgrunden
+    captureAnalysis().then(faceResult => {
+      console.log('[Kiosk] faceResult:', faceResult);
+
+      if (faceResult?.isDuplicate) {
+        setShowDuplicate(true);
+        setTimeout(() => setShowDuplicate(false), 3000);
+      }
+
+      setFaceData(faceResult ? {
+        ageGroup: faceResult.ageGroup,
+        gender:   faceResult.gender,
+      } : null);
+
+      if (!step2HasContent(val)) {
+        submit(val, '', '', '', faceResult);
+      }
+    }).catch(e => {
+      console.warn('[Kiosk] Kameraanalys misslyckades:', e.message);
+      if (!step2HasContent(val)) {
+        submit(val, '', '', '', null);
+      }
+    });
   }
+
 
   // ── Laddning ──
   if (loading) {
@@ -382,7 +382,7 @@ export default function KioskPage({ accessToken }) {
 
           <form className="kiosk-form" onSubmit={e => {
             e.preventDefault();
-            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail, faceData);
+            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
           }}>
             <p className="kiosk-step2-label">Vad beskriver bäst din upplevelse?</p>
 
