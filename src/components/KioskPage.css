@@ -28,8 +28,8 @@
 }
 
 .kiosk-wrap .kiosk-logo-header img {
-  max-height: 64px;
-  max-width: 260px;
+  max-height: 77px;
+  max-width: 312px;
   object-fit: contain;
 }
 
@@ -37,8 +37,14 @@
 .kiosk-wrap .kiosk-form {
   -webkit-flex: 1;
   flex: 1;
-  padding: 3rem 2.5rem 2rem;
+  padding: 2rem 2.5rem;
   background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-justify-content: center;
+  justify-content: center;
 }
 
 /* ── NPS-fråga ── */
@@ -97,8 +103,18 @@
 }
 
 .kiosk-wrap .kiosk-fa-logo {
-  height: 72px;
+  height: 94px;
   opacity: 0.6;
+}
+
+/* ── Sida 2: begränsa bredd till ca 50% av skärmen ── */
+.kiosk-wrap .kiosk-step2-label,
+.kiosk-wrap .kiosk-predefined-buttons,
+.kiosk-wrap .kiosk-followup,
+.kiosk-wrap .kiosk-submit-btn,
+.kiosk-wrap .kiosk-label,
+.kiosk-wrap .kiosk-textarea {
+  max-width: 50vw;
 }
 
 /* ── Sida 2: rubrik ── */
