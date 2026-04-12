@@ -234,10 +234,11 @@ export default function KioskPage({ accessToken }) {
         followUpEmail:  email || '',
       });
       console.log('[Kiosk] svar sparat:', result);
+      setStep(3);
     } catch (e) {
       console.error('[Kiosk] saveResponse fel:', e);
+      setError('Kunde inte spara svar: ' + (e?.message || JSON.stringify(e)));
     }
-    setStep(3);
   }
 
   // ── Laddning ──
