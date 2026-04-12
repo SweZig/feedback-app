@@ -14,7 +14,7 @@
 import * as faceapi from '@vladmandic/face-api';
 
 // Modeller laddas från public/models/ (se download-face-models.ps1)
-const MODEL_PATH = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights';
+const MODEL_PATH = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 
 // Deduplikering: poster äldre än 5 min rensas automatiskt
 const DEDUP_TTL_MS = 5 * 60 * 1000;
