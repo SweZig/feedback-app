@@ -228,7 +228,7 @@ export default function KioskPage({ accessToken }) {
   async function submit(s, c, pa, email = '') {
     if (!kioskData) return;
     try {
-      const result = await saveKioskResponse({
+      await saveKioskResponse({
         touchpointId:   kioskData.tp.id,
         chainId:        kioskData.tp.chain_id,
         score:          s,
