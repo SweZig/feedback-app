@@ -30,6 +30,7 @@
   aspect-ratio: 1;
   min-width: 0;
   max-width: clamp(52px, 7.5vw, 96px);
+  height: clamp(52px, 7.5vw, 96px);
   border: 2px solid transparent;
   border-radius: 50%;
   font-size: 1rem;
