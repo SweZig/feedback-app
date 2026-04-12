@@ -99,10 +99,14 @@ async function saveKioskResponse({ touchpointId, chainId, score, comment, select
   }
 
   if (selectedAnswer?.trim()) {
-    await supabase.from('response_answers').insert({
-      response_id: resp.id,
-      answer_text: selectedAnswer.trim(),
-    }).catch(e => console.error('[KioskPage] response_answers insert:', e));
+    try {
+      await supabase.from('response_answers').insert({
+        response_id: resp.id,
+        answer_text: selectedAnswer.trim(),
+      });
+    } catch (e) {
+      console.error('[KioskPage] response_answers insert:', e);
+    }
   }
 
   return resp;
