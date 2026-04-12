@@ -46,6 +46,12 @@
   gap: 2.5rem;
 }
 
+/* Tvinga runda bollar i Fully Kiosk Browser */
+.kiosk-step1 .score-btn {
+  border-radius: 50% !important;
+  padding: 0 !important;
+}
+
 .kiosk-question {
   font-size: 1.5rem;
   font-weight: 600;
