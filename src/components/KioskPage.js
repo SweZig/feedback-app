@@ -82,7 +82,7 @@ async function saveKioskResponse({ touchpointId, chainId, score, comment, select
       chain_id:      chainId,
       score,
       nps_category,
-      session_id:    crypto.randomUUID(),
+      session_id:    generateUUID(),
       responded_at:  new Date().toISOString(),
       metadata,
     })
@@ -108,7 +108,17 @@ async function saveKioskResponse({ touchpointId, chainId, score, comment, select
   return resp;
 }
 
-// ── TpBadge ──
+// UUID-fallback för äldre Android/WebView som saknar crypto.randomUUID()
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback: manuell UUID v4
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
 function TpBadge({ tp, dept }) {
   return (
     <div className="kiosk-badge">
