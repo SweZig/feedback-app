@@ -21,7 +21,6 @@
 
 .score-buttons {
   display: flex;
-  gap: 0.35rem;
   padding: 0 1.5vw;
 }
 
@@ -31,6 +30,7 @@
   min-width: 0;
   max-width: clamp(52px, 7.5vw, 96px);
   height: clamp(52px, 7.5vw, 96px);
+  margin: 0 0.2vw;
   border: 2px solid transparent;
   border-radius: 50%;
   font-size: 1rem;
