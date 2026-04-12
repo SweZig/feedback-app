@@ -169,7 +169,7 @@ export async function analyzeFrame(videoEl) {
         videoEl,
         new faceapi.TinyFaceDetectorOptions({
           inputSize: 224,       // Balans mellan precision och hastighet
-          scoreThreshold: 0.5,  // Kräv rimlig detektionssäkerhet
+          scoreThreshold: 0.3,  // Sänkt för bättre detektering
         })
       )
       .withFaceLandmarks(true)  // tiny-modellen (80 KB)
