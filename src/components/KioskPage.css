@@ -109,14 +109,14 @@
 
 /* ── Sida 2: begränsa bredd till ca 50% och centrera ── */
 .kiosk-wrap .kiosk-step2-label,
-.kiosk-wrap .kiosk-predefined-buttons,
 .kiosk-wrap .kiosk-followup,
 .kiosk-wrap .kiosk-submit-btn,
-.kiosk-wrap .kiosk-label,
-.kiosk-wrap .kiosk-textarea {
+.kiosk-wrap .kiosk-label {
   max-width: 50vw;
+  width: 100%;
   margin-left: auto;
   margin-right: auto;
+  box-sizing: border-box;
 }
 
 /* ── Sida 2: rubrik ── */
@@ -293,4 +293,10 @@
   justify-content: center;
   font-size: 1.8rem;
   font-weight: 700;
+}
+
+/* ── Sida 2: centrera formulärets barn ── */
+.kiosk-wrap .kiosk-form {
+  -webkit-align-items: center;
+  align-items: center;
 }
