@@ -144,3 +144,52 @@ export async function analyzeFrame(videoEl) {
     rawAge: Math.round(result.age),
   };
 }
+
+/**
+ * Analyserar ett HTMLImageElement (används för Fully getCamshot base64-bilder).
+ * Samma logik som analyzeFrame men tar Image istället för Video.
+ */
+export async function analyzeImage(imgEl) {
+  if (!modelsLoaded || !imgEl) return null;
+
+  // Rita till canvas
+  const canvas = document.createElement('canvas');
+  canvas.width  = imgEl.naturalWidth  || imgEl.width  || 320;
+  canvas.height = imgEl.naturalHeight || imgEl.height || 240;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+
+  let result;
+  try {
+    result = await faceapi
+      .detectSingleFace(
+        canvas,
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.3 })
+      )
+      .withFaceLandmarks(true)
+      .withAgeAndGender();
+  } catch (err) {
+    console.warn('[faceAnalysis] analyzeImage fel:', err.message);
+    return null;
+  }
+
+  console.log('[faceAnalysis] analyzeImage resultat:', result);
+  if (!result) return null;
+
+  const descriptor = buildDescriptor(result.landmarks);
+  pruneCache();
+  const isDuplicate = _cache.some(
+    entry => euclidean(entry.descriptor, descriptor) < SIMILARITY_THRESHOLD
+  );
+  if (!isDuplicate) {
+    _cache.push({ descriptor, timestamp: Date.now() });
+  }
+
+  return {
+    isDuplicate,
+    ageGroup: toAgeGroup(result.age),
+    gender: toGender(result.gender, result.genderProbability),
+    confidence: parseFloat(result.detection.score.toFixed(3)),
+    rawAge: Math.round(result.age),
+  };
+}
