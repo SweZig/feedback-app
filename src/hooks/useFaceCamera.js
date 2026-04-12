@@ -1,33 +1,6 @@
-/**
- * useFaceCamera.js
- * ───────────────────────────────────────────────────────────────────────────
- * Custom hook som hanterar kamerans livscykel och exponerar captureAnalysis().
- *
- * Användning i KioskPage:
- *
- *   const { videoRef, captureAnalysis, cameraReady } = useFaceCamera();
- *
- *   // I JSX — dold videoelement för kameraström:
- *   <video ref={videoRef} autoPlay muted playsInline style={{ display: 'none' }} />
- *
- *   // Vid score-val:
- *   const result = await captureAnalysis();
- *   if (result?.isDuplicate) { ...visa meddelande eller ignorera... }
- *   // result?.ageGroup och result?.gender sparas med svaret
- * ───────────────────────────────────────────────────────────────────────────
- */
-
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { loadFaceModels, analyzeFrame, areFaceModelsLoaded } from '../utils/faceAnalysis';
 
-/**
- * @returns {{
- *   videoRef:        React.RefObject<HTMLVideoElement>,
- *   captureAnalysis: () => Promise<AnalysisResult|null>,
- *   cameraReady:     boolean,
- *   cameraError:     string|null,
- * }}
- */
 export function useFaceCamera() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -38,13 +11,12 @@ export function useFaceCamera() {
     let cancelled = false;
 
     async function initCamera() {
-      // Ladda modeller parallellt med kamerastart
       const modelPromise = loadFaceModels();
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'user',   // Frontkamera
+            facingMode: 'user',
             width: { ideal: 320 },
             height: { ideal: 240 },
           },
@@ -61,12 +33,14 @@ export function useFaceCamera() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = () => {
-            if (!cancelled) setCameraReady(true);
+            if (!cancelled) {
+              console.log('[useFaceCamera] Kamera redo, videoWidth:', videoRef.current?.videoWidth);
+              setCameraReady(true);
+            }
           };
         }
       } catch (err) {
         if (!cancelled) {
-          // Vanliga felkoder: NotAllowedError, NotFoundError, NotReadableError
           const msg = err.name === 'NotAllowedError'
             ? 'Kamerabehörighet nekad'
             : err.name === 'NotFoundError'
@@ -78,8 +52,8 @@ export function useFaceCamera() {
         return;
       }
 
-      // Vänta på att modeller laddas (sker parallellt med kamerastart)
       await modelPromise;
+      console.log('[useFaceCamera] Modeller klara, cameraReady kommer sättas till true');
     }
 
     initCamera();
@@ -94,14 +68,8 @@ export function useFaceCamera() {
     };
   }, []);
 
-  /**
-   * Tar en snapshot från videoströmmen och analyserar den.
-   * Anropas precis när användaren trycker på ett NPS-betyg.
-   *
-   * Returnerar null om kamera inte är redo eller inget ansikte hittas.
-   * Appen ska alltid tillåta svaret att gå igenom — demografi är frivillig data.
-   */
   const captureAnalysis = useCallback(async () => {
+    console.log('[useFaceCamera] captureAnalysis anropad — cameraReady:', cameraReady, '| modelsLoaded:', areFaceModelsLoaded(), '| videoRef:', !!videoRef.current);
     if (!cameraReady || !areFaceModelsLoaded()) return null;
     if (!videoRef.current) return null;
 
