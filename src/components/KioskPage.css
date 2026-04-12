@@ -101,6 +101,15 @@
 /* ── Score selector ── */
 .kiosk-wrap .score-selector {
   margin-bottom: 1.5rem;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+.kiosk-wrap .score-scale-wrapper {
+  width: 100%;
+  max-width: calc(11 * clamp(52px, 7.5vw, 96px) + 22 * 0.25vw + 2vw);
 }
 
 /* ── Score buttons — margin istället för gap ── */
@@ -108,9 +117,6 @@
   display: -webkit-flex;
   display: flex;
   padding: 0 1vw;
-  max-width: calc(11 * clamp(52px, 7.5vw, 96px) + 22 * 0.25vw);
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .kiosk-wrap .score-btn {
