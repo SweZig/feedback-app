@@ -28,8 +28,8 @@
 }
 
 .kiosk-wrap .kiosk-logo-header img {
-  max-height: 77px;
-  max-width: 312px;
+  max-height: 64px;
+  max-width: 260px;
   object-fit: contain;
 }
 
@@ -37,14 +37,8 @@
 .kiosk-wrap .kiosk-form {
   -webkit-flex: 1;
   flex: 1;
-  padding: 2rem 2.5rem;
+  padding: 3rem 2.5rem 2rem;
   background: #fff;
-  display: -webkit-flex;
-  display: flex;
-  -webkit-flex-direction: column;
-  flex-direction: column;
-  -webkit-justify-content: center;
-  justify-content: center;
 }
 
 /* ── NPS-fråga ── */
@@ -103,20 +97,8 @@
 }
 
 .kiosk-wrap .kiosk-fa-logo {
-  height: 94px;
+  height: 72px;
   opacity: 0.6;
-}
-
-/* ── Sida 2: begränsa bredd till ca 50% och centrera ── */
-.kiosk-wrap .kiosk-step2-label,
-.kiosk-wrap .kiosk-followup,
-.kiosk-wrap .kiosk-submit-btn,
-.kiosk-wrap .kiosk-label {
-  max-width: 50vw;
-  width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-  box-sizing: border-box;
 }
 
 /* ── Sida 2: rubrik ── */
@@ -134,20 +116,18 @@
   display: flex;
   -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
-  -webkit-justify-content: center;
-  justify-content: center;
-  margin: -0.3rem auto 1.2rem;
-  max-width: 50vw;
+  margin: -0.3rem;
+  margin-bottom: 1.2rem;
 }
 
 .kiosk-wrap .kiosk-predefined-btn {
   margin: 0.3rem;
-  padding: 0.72rem 1.32rem;
+  padding: 0.6rem 1.1rem;
   border: 2px solid #bdc3c7;
   border-radius: 20px;
   background: #fff;
   color: #1e3a4f;
-  font-size: 1.08rem;
+  font-size: 0.9rem;
   cursor: pointer;
 }
 
@@ -295,8 +275,27 @@
   font-weight: 700;
 }
 
-/* ── Sida 2: centrera formulärets barn ── */
-.kiosk-wrap .kiosk-form {
+/* ── Sida 2: centrera och begränsa formulärets barn (form = steg 2, div = steg 1) ── */
+.kiosk-wrap form.kiosk-form {
   -webkit-align-items: center;
   align-items: center;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-step2-label,
+.kiosk-wrap form.kiosk-form .kiosk-followup,
+.kiosk-wrap form.kiosk-form .kiosk-submit-btn,
+.kiosk-wrap form.kiosk-form .kiosk-label {
+  max-width: 50vw;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-meta-row {
+  width: 100%;
+  max-width: none;
 }
