@@ -82,6 +82,7 @@ async function saveKioskResponse({
   followUpEmail,
   ageGroup,   // 'barn' | 'ungdom' | 'vuxen' | 'äldre' | null
   gender,     // 'man' | 'kvinna' | 'okänt' | null
+  isDuplicate, // boolean
 }) {
   const nps_category =
     score <= 6 ? 'detractor' :
@@ -100,8 +101,9 @@ async function saveKioskResponse({
       session_id:    generateUUID(),
       responded_at:  new Date().toISOString(),
       metadata,
-      age_group:     ageGroup  || null,
-      gender:        gender    || null,
+      age_group:     ageGroup     || null,
+      gender:        gender       || null,
+      is_duplicate:  isDuplicate  || false,
     })
     .select()
     .single();
@@ -172,7 +174,6 @@ export default function KioskPage({ accessToken }) {
   const [followUpEmail, setFollowUpEmail]       = useState('');
   const [countdown, setCountdown]               = useState(6);
   const [faceData, setFaceData]                 = useState(null);
-  const [showDuplicate, setShowDuplicate]       = useState(false);
   const timerRef = useRef(null);
 
   // ── Kamera + ansiktsanalys ──
@@ -262,8 +263,9 @@ export default function KioskPage({ accessToken }) {
         comment:        c || '',
         selectedAnswer: pa || null,
         followUpEmail:  email || '',
-        ageGroup:       face?.ageGroup || null,
-        gender:         face?.gender   || null,
+        ageGroup:       face?.ageGroup   || null,
+        gender:         face?.gender     || null,
+        isDuplicate:    face?.isDuplicate || false,
       });
       setStep(3);
     } catch (e) {
@@ -283,14 +285,10 @@ export default function KioskPage({ accessToken }) {
 
     // Kameraanalys asynkront i bakgrunden
     captureAnalysis().then(faceResult => {
-      if (faceResult?.isDuplicate) {
-        setShowDuplicate(true);
-        setTimeout(() => setShowDuplicate(false), 3000);
-      }
-
       setFaceData(faceResult ? {
-        ageGroup: faceResult.ageGroup,
-        gender:   faceResult.gender,
+        ageGroup:    faceResult.ageGroup,
+        gender:      faceResult.gender,
+        isDuplicate: faceResult.isDuplicate,
       } : null);
 
       if (!step2HasContent(val)) {
@@ -454,14 +452,7 @@ export default function KioskPage({ accessToken }) {
     <>
       {cameraVideo}
       <div className="kiosk-wrap">
-        {/* Duplikatvarning — visas som overlay-notis i 3 sekunder */}
-        {showDuplicate && (
-          <div className="kiosk-duplicate-notice">
-            Vi har redan registrerat ditt svar — tack!
-          </div>
-        )}
-
-        <div className="kiosk-logo-header">
+<div className="kiosk-logo-header">
           <img src={logo} alt="Logo"
             onError={e => { e.target.src = FA_LOGO; }} />
         </div>
