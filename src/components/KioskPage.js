@@ -173,7 +173,6 @@ export default function KioskPage({ accessToken }) {
   const [countdown, setCountdown]               = useState(6);
   const [faceData, setFaceData]                 = useState(null);
   const [showDuplicate, setShowDuplicate]       = useState(false);
-  const [lastFaceResult, setLastFaceResult]     = useState(null);
   const timerRef = useRef(null);
 
   // ── Kamera + ansiktsanalys ──
@@ -284,7 +283,6 @@ export default function KioskPage({ accessToken }) {
 
     // Kameraanalys asynkront i bakgrunden
     captureAnalysis().then(faceResult => {
-      setLastFaceResult(faceResult);
       if (faceResult?.isDuplicate) {
         setShowDuplicate(true);
         setTimeout(() => setShowDuplicate(false), 3000);
@@ -467,12 +465,6 @@ export default function KioskPage({ accessToken }) {
           <img src={logo} alt="Logo"
             onError={e => { e.target.src = FA_LOGO; }} />
         </div>
-
-        {/* DEBUG — kamerastatus, ta bort i produktion */}
-        <div style={{position:'fixed',bottom:8,left:8,background:'rgba(0,0,0,0.7)',color:'#fff',fontSize:11,padding:'4px 8px',borderRadius:4,zIndex:999}}>
-          📷 {faceStatus} | {lastFaceResult ? `${lastFaceResult.ageGroup}/${lastFaceResult.gender}` : 'ingen'}
-        </div>
-
         <div className="kiosk-form">
           <h2>{npsQuestion}</h2>
           <ScoreSelector
