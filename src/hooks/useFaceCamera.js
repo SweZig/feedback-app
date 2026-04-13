@@ -85,8 +85,8 @@ export function useFaceCamera() {
   }, []);
 
   const captureAnalysis = useCallback(async () => {
+    alert('captureAnalysis anropad, modeller: ' + areFaceModelsLoaded() + ', fully: ' + (typeof window.fully));
     if (!areFaceModelsLoaded()) {
-      console.log('[useFaceCamera] Modeller ej laddade');
       return null;
     }
 
