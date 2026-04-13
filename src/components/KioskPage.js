@@ -177,7 +177,7 @@ export default function KioskPage({ accessToken }) {
   const timerRef = useRef(null);
 
   // ── Kamera + ansiktsanalys ──
-  const { videoRef, captureAnalysis } = useFaceCamera();
+  const { videoRef, captureAnalysis, faceStatus } = useFaceCamera();
 
   useEffect(() => {
     fetchKioskData(accessToken)
