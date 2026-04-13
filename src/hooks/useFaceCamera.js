@@ -84,7 +84,7 @@ export function useFaceCamera() {
     };
   }, []);
 
-  const captureAnalysis = useCallback(async () => {
+  async function captureAnalysis() {
     alert('captureAnalysis anropad, modeller: ' + areFaceModelsLoaded() + ', fully: ' + (typeof window.fully));
     if (!areFaceModelsLoaded()) {
       return null;
@@ -107,7 +107,6 @@ export function useFaceCamera() {
     // Webbläsar-läge
     if (!videoRef.current) return null;
     return await analyzeFrame(videoRef.current);
-  }, []);
 
   return { videoRef, captureAnalysis, cameraReady, cameraError, faceStatus };
 }
