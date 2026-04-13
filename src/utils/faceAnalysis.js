@@ -93,7 +93,7 @@ export async function analyzeFrame(videoEl) {
   const canvas = document.createElement('canvas');
   canvas.width  = videoEl.videoWidth;
   canvas.height = videoEl.videoHeight;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
 
   let result;
