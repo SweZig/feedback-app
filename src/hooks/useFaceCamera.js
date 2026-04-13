@@ -93,7 +93,7 @@ export function useFaceCamera() {
     // Fully-läge — kontrollera vid capture-tillfället
     if (typeof window.fully !== 'undefined' && typeof window.fully.getCamshot === 'function') {
       const base64 = window.fully.getCamshot();
-      console.log('[useFaceCamera] getCamshot:', base64 ? `${base64.length} tecken` : 'null');
+      alert('getCamshot: ' + (base64 ? base64.substring(0, 50) : 'NULL/TOM'));
       if (!base64) { setFaceStatus('no-face'); return null; }
 
       return await new Promise((resolve) => {
