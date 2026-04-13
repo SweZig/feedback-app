@@ -266,3 +266,115 @@
 .tp-card-type--physical { background: rgba(30, 58, 79, 0.1); color: #1e3a4f; }
 .tp-card-type--online   { background: rgba(39, 174, 96, 0.12); color: #27ae60; }
 .tp-card-type--other    { background: rgba(243, 156, 18, 0.12); color: #d68910; }
+
+/* ── Demografi Beta ─────────────────────────────────────────────────── */
+.demo-beta-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: #8e44ad;
+  color: #fff;
+  padding: 0.1rem 0.45rem;
+  border-radius: 8px;
+  vertical-align: middle;
+  margin-left: 0.35rem;
+  letter-spacing: 0.03em;
+}
+
+.demo-card .demo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.demo-card .demo-header h3 {
+  margin: 0;
+}
+
+.demo-coverage {
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+}
+
+.demo-duplicate-info {
+  font-size: 0.82rem;
+  color: var(--color-text-light);
+  margin: -0.25rem 0 0.75rem;
+}
+
+.demo-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .demo-groups { grid-template-columns: 1fr; }
+}
+
+.demo-group-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.6rem;
+}
+
+.demo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.demo-row-label {
+  font-size: 0.85rem;
+  width: 110px;
+  flex-shrink: 0;
+  color: var(--color-text);
+}
+
+.demo-bar-wrap {
+  flex: 1;
+  background: #f0f0f0;
+  border-radius: 4px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.demo-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  min-width: 2px;
+}
+
+.demo-row-pct {
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+  width: 34px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.demo-row-count {
+  font-size: 0.8rem;
+  color: var(--color-text-light);
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.demo-nps-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  padding: 0.1rem 0.4rem;
+  border-radius: 8px;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: center;
+}

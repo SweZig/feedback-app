@@ -224,6 +224,91 @@ function TouchpointsView({ touchpoints, departments, allResponses, periodLabel }
   );
 }
 
+
+// ── Demografi Beta ─────────────────────────────────────────────────────────────
+function DemographicsCard({ responses, duplicateCount }) {
+  const withDemo = responses.filter(r => r.ageGroup || r.gender);
+  const total = withDemo.length;
+
+  if (total === 0) {
+    return (
+      <div className="report-card demo-card">
+        <div className="demo-header">
+          <h3>Demografi <span className="demo-beta-badge">Beta</span></h3>
+        </div>
+        <p className="report-empty-text">Inga demografidata ännu — kräver kamera på kiosk-enheter.</p>
+      </div>
+    );
+  }
+
+  function groupStats(key, groups) {
+    return groups.map(g => {
+      const group = withDemo.filter(r => r[key] === g.value);
+      const npsResult = calculateNps(group);
+      return {
+        label: g.label,
+        count: group.length,
+        pct: Math.round((group.length / total) * 100),
+        nps: npsResult?.nps ?? null,
+      };
+    }).filter(g => g.count > 0);
+  }
+
+  const genderGroups = groupStats('gender', [
+    { value: 'man', label: 'Man' },
+    { value: 'kvinna', label: 'Kvinna' },
+    { value: 'okänt', label: 'Okänt kön' },
+  ]);
+
+  const ageGroups = groupStats('ageGroup', [
+    { value: 'barn', label: 'Barn (<13)' },
+    { value: 'ungdom', label: 'Ungdom (13–25)' },
+    { value: 'vuxen', label: 'Vuxen (26–60)' },
+    { value: 'äldre', label: 'Äldre (>60)' },
+  ]);
+
+  function NpsChip({ nps }) {
+    if (nps === null) return null;
+    const color = nps >= 30 ? '#27ae60' : nps >= 0 ? '#f39c12' : '#e74c3c';
+    return <span className="demo-nps-chip" style={{ background: color }}>{nps >= 0 ? '+' : ''}{nps}</span>;
+  }
+
+  function DemoGroup({ title, groups }) {
+    return (
+      <div className="demo-group">
+        <h4 className="demo-group-title">{title}</h4>
+        {groups.map(g => (
+          <div key={g.label} className="demo-row">
+            <span className="demo-row-label">{g.label}</span>
+            <div className="demo-bar-wrap">
+              <div className="demo-bar" style={{ width: `${g.pct}%` }} />
+            </div>
+            <span className="demo-row-pct">{g.pct}%</span>
+            <span className="demo-row-count">{g.count} sv</span>
+            <NpsChip nps={g.nps} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="report-card demo-card">
+      <div className="demo-header">
+        <h3>Demografi <span className="demo-beta-badge">Beta</span></h3>
+        <span className="demo-coverage">{total} av {responses.length} svar med demografidata</span>
+      </div>
+      {duplicateCount > 0 && (
+        <p className="demo-duplicate-info">ℹ️ {duplicateCount} dubblettvar filtrerade från NPS-beräkningar.</p>
+      )}
+      <div className="demo-groups">
+        <DemoGroup title="Kön" groups={genderGroups} />
+        <DemoGroup title="Åldersgrupp" groups={ageGroups} />
+      </div>
+    </div>
+  );
+}
+
 export default function ReportPage({ activeCustomer }) {
   const [filterDays, setFilterDays] = useState(null);
   const [dateRange, setDateRange] = useState(false);
@@ -232,6 +317,9 @@ export default function ReportPage({ activeCustomer }) {
   const [filterMode, setFilterMode] = useState('all');
   const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
   const [focusImprovements, setFocusImprovements] = useState(false);
+  const [showDemographics, setShowDemographics] = useState(() => {
+    try { return localStorage.getItem('report_show_demographics') === 'true'; } catch { return false; }
+  });
   const [supabaseResponses, setSupabaseResponses] = useState(undefined);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -267,6 +355,9 @@ export default function ReportPage({ activeCustomer }) {
           timestamp:        new Date(r.responded_at).getTime(),
           followUpEmail:    r.metadata?.followUpEmail || '',
           nps_category:     r.nps_category,
+          ageGroup:         r.age_group   || null,
+          gender:           r.gender      || null,
+          isDuplicate:      r.is_duplicate || false,
         }));
         setSupabaseResponses(formatted);
         setIsRefreshing(false);
@@ -330,12 +421,15 @@ export default function ReportPage({ activeCustomer }) {
         ? getResponsesByDateRange(fromDate, toDate, customerId, null)
         : getFilteredResponses(filterDays, customerId, null));
 
-  const result = calculateNps(responses);
+  // Filtrera bort dubbletter från NPS-beräkningar
+  const npsResponses = responses.filter(r => !r.isDuplicate);
+  const duplicateCount = responses.filter(r => r.isDuplicate).length;
+  const result = calculateNps(npsResponses);
 
   const typeStats = ['physical', 'online', 'other'].map((type) => {
     const tpIds = touchpoints.filter((t) => t.type === type).map((t) => t.id);
     if (!tpIds.length) return null;
-    const r = calculateNps(responses.filter((res) => tpIds.includes(res.touchpointId)));
+    const r = calculateNps(npsResponses.filter((res) => tpIds.includes(res.touchpointId)));
     if (!r) return null;
     return { type, ...r };
   }).filter(Boolean);
@@ -343,7 +437,7 @@ export default function ReportPage({ activeCustomer }) {
   const deptStats = departments.map((dept) => {
     const tpIds = touchpoints.filter((t) => t.departmentId === dept.id).map((t) => t.id);
     if (!tpIds.length) return null;
-    const r = calculateNps(responses.filter((res) => tpIds.includes(res.touchpointId)));
+    const r = calculateNps(npsResponses.filter((res) => tpIds.includes(res.touchpointId)));
     if (!r) return null;
     return { dept, ...r };
   }).filter(Boolean).sort((a, b) => b.nps - a.nps);
@@ -503,6 +597,26 @@ export default function ReportPage({ activeCustomer }) {
                   </div>
                 </div>
               </div>
+
+              {/* Demografi Beta */}
+              <div className="report-card" style={{padding:'0.75rem 1rem 0.5rem'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <span style={{fontSize:'0.9rem',fontWeight:600,color:'var(--color-text)'}}>
+                    Demografi <span className="demo-beta-badge">Beta</span>
+                  </span>
+                  <button
+                    className={`setting-switch ${showDemographics ? 'setting-switch--on' : ''}`}
+                    onClick={() => {
+                      const next = !showDemographics;
+                      setShowDemographics(next);
+                      try { localStorage.setItem('report_show_demographics', next); } catch {}
+                    }}
+                  ><span className="setting-switch-knob" /></button>
+                </div>
+              </div>
+              {showDemographics && (
+                <DemographicsCard responses={npsResponses} duplicateCount={duplicateCount} />
+              )}
 
               {/* Per type */}
               {typeStats.length > 0 && (
