@@ -87,7 +87,6 @@ function toGender(gender, probability) {
 export async function analyzeFrame(videoEl) {
   if (!modelsLoaded || !videoEl) return null;
 
-  console.log('[faceAnalysis] readyState:', videoEl.readyState, 'videoWidth:', videoEl.videoWidth);
   if (videoEl.readyState < 2 || !videoEl.videoWidth) return null;
 
   // Rita videoframe till canvas — mer pålitligt än dolt video-element
@@ -96,14 +95,6 @@ export async function analyzeFrame(videoEl) {
   canvas.height = videoEl.videoHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-
-  // DEBUG — visa canvas-bild direkt på sidan
-  const debugImg = document.createElement('img');
-  debugImg.src = canvas.toDataURL();
-  debugImg.style.cssText = 'position:fixed;top:10px;right:10px;z-index:9999;width:200px;border:3px solid red;';
-  debugImg.id = 'face-debug-img';
-  document.getElementById('face-debug-img')?.remove();
-  document.body.appendChild(debugImg);
 
   let result;
   try {
@@ -122,7 +113,6 @@ export async function analyzeFrame(videoEl) {
     return null;
   }
 
-  console.log('[faceAnalysis] detectSingleFace resultat:', result);
   if (!result) return null;
 
   const descriptor = buildDescriptor(result.landmarks);
@@ -173,7 +163,6 @@ export async function analyzeImage(imgEl) {
     return null;
   }
 
-  console.log('[faceAnalysis] analyzeImage resultat:', result);
   if (!result) return null;
 
   const descriptor = buildDescriptor(result.landmarks);

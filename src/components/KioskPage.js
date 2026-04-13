@@ -90,7 +90,6 @@ async function saveKioskResponse({
   const metadata = {};
   if (followUpEmail?.trim()) metadata.followUpEmail = followUpEmail.trim();
 
-  console.log('[saveKioskResponse] insertar:', { score, ageGroup, gender, nps_category });
   const { data: resp, error: respError } = await supabase
     .from('responses')
     .insert({
@@ -266,7 +265,6 @@ export default function KioskPage({ accessToken }) {
         ageGroup:       face?.ageGroup || null,
         gender:         face?.gender   || null,
       });
-      console.log('[Kiosk] svar sparat:', result);
       setStep(3);
     } catch (e) {
       console.error('[Kiosk] saveResponse fel:', e);
@@ -285,8 +283,6 @@ export default function KioskPage({ accessToken }) {
 
     // Kameraanalys asynkront i bakgrunden
     captureAnalysis().then(faceResult => {
-      console.log('[Kiosk] faceResult:', faceResult);
-
       if (faceResult?.isDuplicate) {
         setShowDuplicate(true);
         setTimeout(() => setShowDuplicate(false), 3000);
