@@ -90,9 +90,6 @@ export function useFaceCamera() {
       return null;
     }
 
-    // Debug — lista fully-funktioner
-    alert('fully-funktioner: ' + Object.keys(window.fully || {}).join(', '));
-
     // Fully-läge — kontrollera vid capture-tillfället
     if (typeof window.fully !== 'undefined' && typeof window.fully.getCamshot === 'function') {
       const base64 = window.fully.getCamshot();
