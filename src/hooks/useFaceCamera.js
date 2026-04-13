@@ -107,6 +107,7 @@ export function useFaceCamera() {
     // Webbläsar-läge
     if (!videoRef.current) return null;
     return await analyzeFrame(videoRef.current);
+  }
 
   return { videoRef, captureAnalysis, cameraReady, cameraError, faceStatus };
 }
