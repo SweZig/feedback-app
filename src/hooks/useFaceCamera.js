@@ -42,7 +42,7 @@ export function useFaceCamera() {
   }, []);
 
   async function captureAnalysis() {
-    if (!areFaceModelsLoaded() || !videoRef.current) return null;
+    if (!cameraReady || !areFaceModelsLoaded() || !videoRef.current) return null;
     try {
       const result = await analyzeFrame(videoRef.current);
       if (result) setFaceStatus(result.ageGroup + '/' + result.gender);
