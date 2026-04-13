@@ -132,10 +132,21 @@
   font-weight: 600;
   cursor: pointer;
   opacity: 0.7;
+  -webkit-transition: transform 0.12s ease, opacity 0.12s ease;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kiosk-wrap .score-btn:active {
+  -webkit-transform: scale(1.18);
+  transform: scale(1.18);
+  opacity: 1;
 }
 
 .kiosk-wrap .score-btn--selected {
   opacity: 1;
+  -webkit-transform: scale(1.15);
+  transform: scale(1.15);
   border-color: #1e3a4f;
 }
 
@@ -339,12 +350,4 @@
   align-items: center;
   -webkit-justify-content: center;
   justify-content: center;
-}
-
-/* ── Ta bort focus-ring (Android WebView visar streckad fyrkant) ── */
-.kiosk-wrap *:focus {
-  outline: none;
-}
-.kiosk-wrap button:active {
-  opacity: 0.85;
 }
