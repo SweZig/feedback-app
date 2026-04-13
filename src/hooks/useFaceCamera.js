@@ -85,16 +85,20 @@ export function useFaceCamera() {
   }, []);
 
   const captureAnalysis = useCallback(async () => {
-    alert('captureAnalysis anropad, modeller: ' + areFaceModelsLoaded() + ', fully: ' + (typeof window.fully));
     if (!areFaceModelsLoaded()) {
+      setFaceStatus('no-models');
       return null;
     }
 
     // Fully-läge — kontrollera vid capture-tillfället
-    if (typeof window.fully !== 'undefined' && typeof window.fully.getCamshot === 'function') {
+    if (typeof window.fully !== 'undefined') {
+      const hasCamshot = typeof window.fully.getCamshot === 'function';
+      setFaceStatus('fully-hasCamshot:' + hasCamshot);
+      if (!hasCamshot) return null;
+
       const base64 = window.fully.getCamshot();
-      alert('getCamshot: ' + (base64 ? base64.substring(0, 50) : 'NULL/TOM'));
-      if (!base64) { setFaceStatus('no-face'); return null; }
+      setFaceStatus('camshot-len:' + (base64 ? base64.length : 0));
+      if (!base64) return null;
 
       return await new Promise((resolve) => {
         const img = new Image();
