@@ -6,7 +6,7 @@ import * as faceapi from '@vladmandic/face-api';
 
 const MODEL_PATH = process.env.PUBLIC_URL + '/models';
 const DEDUP_TTL_MS = 5 * 60 * 1000;
-const SIMILARITY_THRESHOLD = 0.38;
+const SIMILARITY_THRESHOLD = 0.6;
 
 let modelsLoaded = false;
 let modelsLoading = false;
