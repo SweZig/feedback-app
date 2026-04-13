@@ -340,3 +340,11 @@
   -webkit-justify-content: center;
   justify-content: center;
 }
+
+/* ── Ta bort focus-ring (Android WebView visar streckad fyrkant) ── */
+.kiosk-wrap *:focus {
+  outline: none;
+}
+.kiosk-wrap button:active {
+  opacity: 0.85;
+}

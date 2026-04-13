@@ -102,7 +102,7 @@ export async function analyzeFrame(videoEl) {
       .detectSingleFace(
         canvas,
         new faceapi.TinyFaceDetectorOptions({
-          inputSize: 224,
+          inputSize: 192,
           scoreThreshold: 0.3,
         })
       )
