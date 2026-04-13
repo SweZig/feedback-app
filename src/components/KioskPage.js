@@ -90,6 +90,7 @@ async function saveKioskResponse({
   const metadata = {};
   if (followUpEmail?.trim()) metadata.followUpEmail = followUpEmail.trim();
 
+  console.log('[saveKioskResponse] insertar:', { score, ageGroup, gender, nps_category });
   const { data: resp, error: respError } = await supabase
     .from('responses')
     .insert({
