@@ -17,6 +17,7 @@ export function useFaceCamera() {
   const streamRef  = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState(null);
+  const [faceStatus, setFaceStatus] = useState('init'); // init | ready-fully | ready-cam | error | no-face
 
   useEffect(() => {
     let cancelled = false;
@@ -29,7 +30,7 @@ export function useFaceCamera() {
       if (typeof window.fully !== 'undefined') {
         console.log('[useFaceCamera] Fully detekterad vid init');
         await modelPromise;
-        if (!cancelled) setCameraReady(true);
+        if (!cancelled) { setCameraReady(true); setFaceStatus('ready-fully'); }
         return;
       }
 
@@ -49,6 +50,7 @@ export function useFaceCamera() {
             if (!cancelled) {
               console.log('[useFaceCamera] Kamera redo, videoWidth:', videoRef.current?.videoWidth);
               setCameraReady(true);
+              setFaceStatus('ready-cam');
             }
           };
         }
@@ -59,7 +61,7 @@ export function useFaceCamera() {
             : `Kamerafel: ${err.message}`;
           console.warn('[useFaceCamera]', msg);
           setCameraError(msg);
-          // Sätt ändå cameraReady så modeller laddas
+          setFaceStatus('error');
           await modelPromise;
           if (!cancelled) setCameraReady(true);
         }
@@ -92,7 +94,7 @@ export function useFaceCamera() {
     if (typeof window.fully !== 'undefined' && typeof window.fully.getCamshot === 'function') {
       const base64 = window.fully.getCamshot();
       console.log('[useFaceCamera] getCamshot:', base64 ? `${base64.length} tecken` : 'null');
-      if (!base64) return null;
+      if (!base64) { setFaceStatus('no-face'); return null; }
 
       return await new Promise((resolve) => {
         const img = new Image();
@@ -107,5 +109,5 @@ export function useFaceCamera() {
     return await analyzeFrame(videoRef.current);
   }, []);
 
-  return { videoRef, captureAnalysis, cameraReady, cameraError };
+  return { videoRef, captureAnalysis, cameraReady, cameraError, faceStatus };
 }
