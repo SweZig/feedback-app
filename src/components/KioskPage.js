@@ -252,7 +252,7 @@ export default function KioskPage({ accessToken }) {
     setFaceData(null);
   }
 
-  async function submit(s, c, pa, email = '') {
+  async function submit(s, c, pa, email = '', face = null) {
     if (!kioskData) { console.error('[Kiosk] submit: kioskData är null'); return; }
     try {
       const result = await saveKioskResponse({
@@ -262,8 +262,8 @@ export default function KioskPage({ accessToken }) {
         comment:        c || '',
         selectedAnswer: pa || null,
         followUpEmail:  email || '',
-        ageGroup:       faceData?.ageGroup || null,
-        gender:         faceData?.gender   || null,
+        ageGroup:       face?.ageGroup || null,
+        gender:         face?.gender   || null,
       });
       console.log('[Kiosk] svar sparat:', result);
       setStep(3);
@@ -382,7 +382,7 @@ export default function KioskPage({ accessToken }) {
 
           <form className="kiosk-form" onSubmit={e => {
             e.preventDefault();
-            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail);
+            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail, faceData);
           }}>
             <p className="kiosk-step2-label">Vad beskriver bäst din upplevelse?</p>
 
