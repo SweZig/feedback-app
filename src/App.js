@@ -131,7 +131,16 @@ function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange
         onSignOut={signOut}
       />
       <main className="app-main">
-        {!roleLoading && !hasAnyAccess && (
+        {roleLoading ? (
+          <div style={{
+            padding: '3rem 2rem',
+            textAlign: 'center',
+            color: '#7a9aaa',
+            fontSize: '0.95rem',
+          }}>
+            Laddar...
+          </div>
+        ) : !hasAnyAccess ? (
           <div style={{
             padding: '3rem 2rem',
             textAlign: 'center',
@@ -148,21 +157,24 @@ function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange
               Kontakta din administratör för att få åtkomst.
             </p>
           </div>
+        ) : (
+          <>
+            {page === 'survey' && can('view_tab_survey') && (
+              <SurveyPage key={refreshKey} activeCustomer={activeCustomer} />
+            )}
+            {page === 'report' && can('view_tab_report') && (
+              <ReportPage key={refreshKey} activeCustomer={activeCustomer} />
+            )}
+            {page === 'settings' && can('view_tab_settings') && (
+              <SettingsPage
+                onSettingsChange={handleSettingsChange}
+                onChainSelect={onChainChange}
+                initialChains={allCustomers}
+              />
+            )}
+            {page === 'admin' && can('view_tab_admin') && <AdminPage />}
+          </>
         )}
-        {page === 'survey' && can('view_tab_survey') && (
-          <SurveyPage key={refreshKey} activeCustomer={activeCustomer} />
-        )}
-        {page === 'report' && can('view_tab_report') && (
-          <ReportPage key={refreshKey} activeCustomer={activeCustomer} />
-        )}
-        {page === 'settings' && can('view_tab_settings') && (
-          <SettingsPage
-            onSettingsChange={handleSettingsChange}
-            onChainSelect={onChainChange}
-            initialChains={allCustomers}
-          />
-        )}
-        {page === 'admin' && can('view_tab_admin') && <AdminPage />}
       </main>
     </div>
   );

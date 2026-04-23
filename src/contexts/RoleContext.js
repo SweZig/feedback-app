@@ -14,21 +14,34 @@ export function RoleProvider({ children, organizationId }) {
   const activeRole = simulatedRole || realRole;
 
   const loadRole = useCallback(async () => {
-    if (!organizationId) return;
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-      const { data } = await supabase
-        .from('org_members')
-        .select('role')
-        .eq('organization_id', organizationId)
-        .eq('user_id', user.id)
-        .single();
+      // Ladda roll och permissions parallellt för att halvera latensen.
+      // Viktigt: setStates efter denna await körs i samma mikrotask och
+      // batchas därför av React 18 till EN re-render. Det eliminerar
+      // race conditionen där realRole hann sättas innan permissions,
+      // vilket gjorde att en analytiker kort såg Enkät (default=true i
+      // DEFAULT_PERMISSIONS) innan de riktiga permissions laddats.
+      const [memberRes, perms] = await Promise.all([
+        supabase
+          .from('org_members')
+          .select('role')
+          .eq('organization_id', organizationId)
+          .eq('user_id', user.id)
+          .single(),
+        getPermissions(organizationId),
+      ]);
 
-      setRealRole(data?.role || null);
-
-      const perms = await getPermissions(organizationId);
+      setRealRole(memberRes.data?.role || null);
       setPermissions(perms);
     } catch (err) {
       console.error('[RoleContext]', err);
