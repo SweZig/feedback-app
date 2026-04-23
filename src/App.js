@@ -22,6 +22,16 @@ import './App.css';
 
 const IS_INVITE_FLOW = sessionStorage.getItem('supabase_auth_type') === 'invite';
 
+// Tabbar + deras permission-nycklar. Ordningen styr både Navigation-visning
+// och vilken flik som blir "första tillåtna" vid fallback.
+// Måste hållas i synk med NAV_TABS i src/components/Navigation.js.
+const NAV_PAGES = [
+  { key: 'survey',   perm: 'view_tab_survey'   },
+  { key: 'report',   perm: 'view_tab_report'   },
+  { key: 'settings', perm: 'view_tab_settings' },
+  { key: 'admin',    perm: 'view_tab_admin'    },
+];
+
 // Kiosk-läge: om ?tp=<access_token> finns i URL — visa enkät utan inloggning
 // access_token är ett UUID genererat per touchpoint i Supabase
 const KIOSK_TOKEN = (() => {
@@ -56,10 +66,10 @@ function SimulationBanner() {
 }
 
 function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange }) {
-  const [page, setPage]             = useState('survey');
-  const [refreshKey, setRefreshKey] = useState(0);
-  const { can, simulatedRole }      = useRole();
-  const urlHandledRef               = useRef(false);
+  const [page, setPage]                 = useState('survey');
+  const [refreshKey, setRefreshKey]     = useState(0);
+  const { can, loading: roleLoading }   = useRole();
+  const urlHandledRef                   = useRef(false);
 
   useEffect(() => {
     if (!activeCustomer || urlHandledRef.current) return;
@@ -70,18 +80,32 @@ function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange
       if (tp) {
         setActiveChainId(activeCustomer.id);
         updateChain(activeCustomer.id, { activeTouchpointId: tpId });
-        setPage('survey');
+        // Sätt bara till survey om användaren har åtkomst; annars låter vi
+        // normalize-effekten nedan välja första tillåtna sidan.
+        if (can('view_tab_survey')) setPage('survey');
         onRefresh();
       }
       urlHandledRef.current = true;
     }
-  }, [activeCustomer, onRefresh]);
+  }, [activeCustomer, onRefresh, can]);
 
+  // Håll page synkad med behörigheter. Körs när:
+  // - roleLoading blir false (initial inloggning — permissions har laddats)
+  // - rollsimulering startas eller stoppas (can-funktionen ändras)
+  // - page ändras till en sida användaren inte har åtkomst till
+  //
+  // Om nuvarande sida är otillåten hoppar vi till första tillåtna i NAV_PAGES.
+  // Om INGEN sida är tillåten låter vi page vara — hasAnyAccess-checken
+  // nedan renderar då "Ingen åtkomst"-vyn istället.
   useEffect(() => {
-    if (!simulatedRole) return;
-    if (page === 'settings' && !can('manage_chains')) setPage('survey');
-    if (page === 'admin'    && !can('view_admin'))    setPage('survey');
-  }, [simulatedRole, page, can]);
+    if (roleLoading) return;
+    const current = NAV_PAGES.find(p => p.key === page);
+    if (current && can(current.perm)) return; // nuvarande sida ok, stanna
+    const first = NAV_PAGES.find(p => can(p.perm));
+    if (first && first.key !== page) setPage(first.key);
+  }, [roleLoading, page, can]);
+
+  const hasAnyAccess = NAV_PAGES.some(p => can(p.perm));
 
   const handleSettingsChange = useCallback(() => {
     onRefresh();
@@ -105,34 +129,40 @@ function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange
         activeCustomer={activeCustomer}
         user={user}
         onSignOut={signOut}
-        canSettings={can('manage_chains')}
-        canAdmin={can('view_admin')}
       />
       <main className="app-main">
-        {page === 'survey' && (
+        {!roleLoading && !hasAnyAccess && (
+          <div style={{
+            padding: '3rem 2rem',
+            textAlign: 'center',
+            color: '#1e3a4f',
+            maxWidth: '480px',
+            margin: '2rem auto',
+            background: '#fff',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          }}>
+            <h2 style={{ marginTop: 0, color: '#1e3a4f' }}>Ingen åtkomst</h2>
+            <p style={{ color: '#7a9aaa', lineHeight: 1.5 }}>
+              Ditt konto har inte behörighet att se några flikar i appen.
+              Kontakta din administratör för att få åtkomst.
+            </p>
+          </div>
+        )}
+        {page === 'survey' && can('view_tab_survey') && (
           <SurveyPage key={refreshKey} activeCustomer={activeCustomer} />
         )}
-        {page === 'report' && (
+        {page === 'report' && can('view_tab_report') && (
           <ReportPage key={refreshKey} activeCustomer={activeCustomer} />
         )}
-        {page === 'settings' && can('manage_chains') && (
+        {page === 'settings' && can('view_tab_settings') && (
           <SettingsPage
             onSettingsChange={handleSettingsChange}
             onChainSelect={onChainChange}
             initialChains={allCustomers}
           />
         )}
-        {page === 'settings' && !can('manage_chains') && (
-          <div style={{ padding: '2rem', color: '#7a9aaa' }}>
-            Du har inte behörighet att se inställningar.
-          </div>
-        )}
-        {page === 'admin' && can('view_admin') && <AdminPage />}
-        {page === 'admin' && !can('view_admin') && (
-          <div style={{ padding: '2rem', color: '#7a9aaa' }}>
-            Du har inte behörighet att se användarhantering.
-          </div>
-        )}
+        {page === 'admin' && can('view_tab_admin') && <AdminPage />}
       </main>
     </div>
   );
