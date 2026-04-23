@@ -35,15 +35,29 @@ export default async function handler(req, res) {
     const { data: userData, error: passwordError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password,
     });
-
     if (passwordError) throw passwordError;
 
-    // Säkerställ att användaren finns i users-tabellen
     const email = userData?.user?.email;
+    if (!email) throw new Error('Kunde inte läsa e-post från användaren');
+
+    // Städa eventuella orphan-rader i public.users med samma e-post
+    // men annat id (från tidigare raderade användare som lämnat orphans).
+    const { data: orphans } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .neq('id', userId);
+
+    if (orphans && orphans.length > 0) {
+      const orphanIds = orphans.map(o => o.id);
+      await supabaseAdmin.from('org_members').delete().in('user_id', orphanIds);
+      await supabaseAdmin.from('users').delete().in('id', orphanIds);
+    }
+
+    // Säkerställ att användaren finns i users-tabellen
     const { error: usersError } = await supabaseAdmin
       .from('users')
       .upsert({ id: userId, email }, { onConflict: 'id' });
-
     if (usersError) throw usersError;
 
     // Skapa org_members-rad
@@ -54,7 +68,6 @@ export default async function handler(req, res) {
         user_id:         userId,
         role,
       }, { onConflict: 'organization_id,user_id' });
-
     if (memberError) throw memberError;
 
     return res.status(200).json({ success: true });

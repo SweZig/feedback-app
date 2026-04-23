@@ -1,7 +1,6 @@
 // api/delete-user.js
 // Vercel Serverless Function — körs server-side med service_role-nyckeln
 // Anropas från AdminPage via fetch('/api/delete-user')
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
@@ -30,10 +29,25 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Ta bort användaren från Supabase Auth
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    // Radera i rätt ordning för att undvika orphans:
+    // 1. org_members (refererar user_id)
+    // 2. public.users (refererar auth.users.id)
+    // 3. auth.users (källan)
 
-    if (error) throw error;
+    const { error: memberError } = await supabaseAdmin
+      .from('org_members')
+      .delete()
+      .eq('user_id', userId);
+    if (memberError) throw memberError;
+
+    const { error: userError } = await supabaseAdmin
+      .from('users')
+      .delete()
+      .eq('id', userId);
+    if (userError) throw userError;
+
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    if (authError) throw authError;
 
     return res.status(200).json({ success: true });
   } catch (err) {
