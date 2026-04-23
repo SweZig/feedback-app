@@ -1,5 +1,5 @@
 // src/components/AdminPage.js
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import {
   getOrgUsers, inviteUser, updateUserRole,
   removeUserFromOrg, getAllOrganizations, getMyRole,
@@ -125,6 +125,7 @@ function UserList({ users, currentUserId, myRole, onRoleChange, onRemove }) {
 }
 
 function PermissionsMatrix({ organizationId }) {
+  const { reloadRole } = useRole();
   const [perms, setPerms]     = useState(null);
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
@@ -149,6 +150,9 @@ function PermissionsMatrix({ organizationId }) {
     setSaving(true); setError('');
     try {
       await savePermissions(organizationId, perms);
+      // Ladda om roll/permissions i RoleContext så att Navigation och
+      // Rollsimulering reflekterar ändringen direkt (ingen refresh krävs).
+      await reloadRole();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -194,8 +198,8 @@ function PermissionsMatrix({ organizationId }) {
           </thead>
           <tbody>
             {PERMISSION_GROUPS.map((group) => (
-              <>
-                <tr key={group.group} className="admin-perms-group-row">
+              <Fragment key={group.group}>
+                <tr className="admin-perms-group-row">
                   <td colSpan={ROLES.length + 1} className="admin-perms-group-label">
                     {group.group}
                   </td>
@@ -216,7 +220,7 @@ function PermissionsMatrix({ organizationId }) {
                     ))}
                   </tr>
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

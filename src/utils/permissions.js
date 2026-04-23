@@ -5,6 +5,15 @@ import { supabase } from './supabaseClient';
 
 export const PERMISSION_GROUPS = [
   {
+    group: 'Fliknavigering',
+    features: [
+      { key: 'view_tab_survey',   label: 'Se fliken Enkät' },
+      { key: 'view_tab_report',   label: 'Se fliken Rapport' },
+      { key: 'view_tab_settings', label: 'Se fliken Inställningar' },
+      { key: 'view_tab_admin',    label: 'Se fliken Användare' },
+    ],
+  },
+  {
     group: 'Användarhantering',
     features: [
       { key: 'invite_users',   label: 'Bjuda in användare' },
@@ -51,6 +60,14 @@ export const PERMISSION_GROUPS = [
 // ─── Defaultvärden per spec ───────────────────────────────────
 
 export const DEFAULT_PERMISSIONS = {
+  // Fliknavigering — nya i v5.4
+  // Enkät och Rapport är synliga för alla roller som standard.
+  // Inställningar och Användare är begränsade till owner/admin.
+  view_tab_survey:   { owner: true,  admin: true,  manager: true,  analytiker: true  },
+  view_tab_report:   { owner: true,  admin: true,  manager: true,  analytiker: true  },
+  view_tab_settings: { owner: true,  admin: true,  manager: false, analytiker: false },
+  view_tab_admin:    { owner: true,  admin: true,  manager: false, analytiker: false },
+
   invite_users:      { owner: true,  admin: true,  manager: false, analytiker: false },
   manage_users:      { owner: true,  admin: true,  manager: false, analytiker: false },
   view_users:        { owner: true,  admin: true,  manager: true,  analytiker: false },
