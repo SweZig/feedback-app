@@ -128,7 +128,7 @@
   margin: 0 0.25vw;
   border: 2px solid transparent;
   border-radius: 50%;
-  font-size: 1rem;
+  font-size: 1.15rem; /* v5.4: +15% för bättre läsbarhet (var 1rem) */
   font-weight: 600;
   cursor: pointer;
   opacity: 0.7;
@@ -193,7 +193,7 @@
   border-radius: 20px;
   background: #fff;
   color: #1e3a4f;
-  font-size: 1.08rem;
+  font-size: 1.24rem; /* v5.4: +15% för bättre läsbarhet (var 1.08rem) */
   cursor: pointer;
 }
 
