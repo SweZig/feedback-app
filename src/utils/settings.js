@@ -1,5 +1,6 @@
 const CHAINS_KEY = 'npsCustomers';
 const ACTIVE_KEY = 'npsActiveCustomerId';
+const ACTIVE_TP_MAP_KEY = 'npsActiveTouchpointByChain';
 const DEMO_ID = 'demo';
 
 export const TYPE_LABELS = {
@@ -384,12 +385,38 @@ export function reorderTouchpoints(chainId, departmentId, orderedIds) {
   saveChains(chains);
 }
 
+// Active touchpoint per chain — lagras i en separat map så det fungerar även
+// för kedjor som bara finns i Supabase (efter Fas 2 ligger flertalet kedjor
+// inte i CHAINS_KEY i localStorage). Tidigare la vi det på chain.activeTouchpointId
+// vilket failade tyst när findIndex returnerade -1.
+function getActiveTpMap() {
+  try { return JSON.parse(localStorage.getItem(ACTIVE_TP_MAP_KEY) || '{}'); }
+  catch { return {}; }
+}
+
+function saveActiveTpMap(map) {
+  localStorage.setItem(ACTIVE_TP_MAP_KEY, JSON.stringify(map));
+}
+
+export function getActiveTouchpointId(chainId) {
+  return getActiveTpMap()[chainId] ?? null;
+}
+
 export function setActiveTouchpoint(chainId, tpId) {
+  // Primär lagring: fristående map (oberoende av om kedjan finns i CHAINS_KEY)
+  const map = getActiveTpMap();
+  if (tpId == null) delete map[chainId];
+  else              map[chainId] = tpId;
+  saveActiveTpMap(map);
+
+  // Bakåtkompabilitet: håll chains[].activeTouchpointId synkad om kedjan
+  // råkar finnas i localStorage (t.ex. Demo-kedjan, eller äldre data).
   const chains = getChains();
   const idx = chains.findIndex((c) => c.id === chainId);
-  if (idx === -1) return;
-  chains[idx] = { ...chains[idx], activeTouchpointId: tpId };
-  saveChains(chains);
+  if (idx !== -1) {
+    chains[idx] = { ...chains[idx], activeTouchpointId: tpId };
+    saveChains(chains);
+  }
 }
 
 export function applyConfigToType(chainId, type) {

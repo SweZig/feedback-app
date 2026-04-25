@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   getActiveChainId,
   setActiveChainId,
-  updateChain,
+  setActiveTouchpoint,
 } from './utils/settings';
 import {
   onAuthStateChange,
@@ -79,7 +79,7 @@ function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange
       const tp = (activeCustomer.touchpoints || []).find(t => t.id === tpId);
       if (tp) {
         setActiveChainId(activeCustomer.id);
-        updateChain(activeCustomer.id, { activeTouchpointId: tpId });
+        setActiveTouchpoint(activeCustomer.id, tpId);
         // Sätt bara till survey om användaren har åtkomst; annars låter vi
         // normalize-effekten nedan välja första tillåtna sidan.
         if (can('view_tab_survey')) setPage('survey');
@@ -209,11 +209,12 @@ function App() {
       const activeId = getActiveChainId();
       const active   = customers.find(c => c.id === activeId) || customers[0];
 
-      // Bevara activeTouchpointId — fallback till första touchpoint
-      const localChains = JSON.parse(localStorage.getItem('npsCustomers') || '[]');
-      const localChain  = localChains.find(c => c.id === active.id);
-      active.activeTouchpointId =
-        localChain?.activeTouchpointId || active.touchpoints?.[0]?.id || null;
+      // assembleChain läser activeTouchpointId från npsActiveTouchpointByChain.
+      // Fallback till första touchpoint om inget är satt än (nyinstallerat konto
+      // eller ny kedja utan tidigare aktiv mätpunkt).
+      if (!active.activeTouchpointId) {
+        active.activeTouchpointId = active.touchpoints?.[0]?.id || null;
+      }
 
       setAllCustomers(customers);
       setActiveCustomer(active);
