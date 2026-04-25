@@ -1,0 +1,353 @@
+/* ═══════════════════════════════════════════════════════
+   KioskPage.css — Scoped under .kiosk-wrap
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Ytterhölje ── */
+.kiosk-wrap {
+  min-height: 100vh;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+}
+
+/* ── Logotyp-header ── */
+.kiosk-wrap .kiosk-logo-header {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: center;
+  justify-content: center;
+  -webkit-align-items: center;
+  align-items: center;
+  padding: 1.25rem 2rem;
+  background: #fff;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
+}
+
+.kiosk-wrap .kiosk-logo-header img {
+  max-height: 77px;
+  max-width: 312px;
+  object-fit: contain;
+}
+
+/* ── Sida 1: div.kiosk-form — full bredd, centrera vertikalt ── */
+.kiosk-wrap div.kiosk-form {
+  -webkit-flex: 1;
+  flex: 1;
+  padding: 2rem 2.5rem;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+/* ── Sida 2: form.kiosk-form — 50% bredd, centrera horisontellt ── */
+.kiosk-wrap form.kiosk-form {
+  -webkit-flex: 1;
+  flex: 1;
+  padding: 2rem 2.5rem;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-align-items: center;
+  align-items: center;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-step2-label,
+.kiosk-wrap form.kiosk-form .kiosk-followup,
+.kiosk-wrap form.kiosk-form .kiosk-submit-btn,
+.kiosk-wrap form.kiosk-form .kiosk-label {
+  max-width: 50vw;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-predefined-buttons {
+  max-width: 50vw;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+.kiosk-wrap form.kiosk-form .kiosk-meta-row {
+  width: 100%;
+  max-width: none;
+  -webkit-align-self: stretch;
+  align-self: stretch;
+}
+
+/* ── NPS-fråga ── */
+.kiosk-wrap .kiosk-form h2 {
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: #1e3a4f;
+  line-height: 1.45;
+  text-align: center;
+  margin-top: 0;
+  margin-bottom: 4vh;
+}
+
+/* ── Score selector ── */
+.kiosk-wrap .score-selector {
+  margin-bottom: 1.5rem;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+
+.kiosk-wrap .score-scale-wrapper {
+  width: 100%;
+  max-width: calc(11 * clamp(52px, 7.5vw, 96px) + 22 * 0.25vw + 2vw);
+}
+
+/* ── Score buttons — margin istället för gap ── */
+.kiosk-wrap .score-buttons {
+  display: -webkit-flex;
+  display: flex;
+  padding: 0 1vw;
+}
+
+.kiosk-wrap .score-btn {
+  -webkit-flex: 1;
+  flex: 1;
+  min-width: 0;
+  max-width: clamp(52px, 7.5vw, 96px);
+  height: clamp(52px, 7.5vw, 96px);
+  margin: 0 0.25vw;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  font-size: 1.15rem; /* v5.4: +15% för bättre läsbarhet (var 1rem) */
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.7;
+  -webkit-transition: transform 0.12s ease, opacity 0.12s ease;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.kiosk-wrap .score-btn:active {
+  -webkit-transform: scale(1.18);
+  transform: scale(1.18);
+  opacity: 1;
+}
+
+.kiosk-wrap .score-btn--selected {
+  opacity: 1;
+  -webkit-transform: scale(1.15);
+  transform: scale(1.15);
+  border-color: #1e3a4f;
+}
+
+/* ── Meta-rad (badge + FA-logo) ── */
+.kiosk-wrap .kiosk-meta-row {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.kiosk-wrap .kiosk-fa-logo {
+  height: 94px;
+  opacity: 0.6;
+}
+
+/* ── Sida 2: rubrik ── */
+.kiosk-wrap .kiosk-step2-label {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e3a4f;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+/* ── Sida 2: fördefinierade knappar ── */
+.kiosk-wrap .kiosk-predefined-buttons {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  margin: -0.3rem;
+  margin-bottom: 1.2rem;
+}
+
+.kiosk-wrap .kiosk-predefined-btn {
+  margin: 0.3rem;
+  padding: 0.72rem 1.32rem;
+  border: 2px solid #bdc3c7;
+  border-radius: 20px;
+  background: #fff;
+  color: #1e3a4f;
+  font-size: 1.24rem; /* v5.4: +15% för bättre läsbarhet (var 1.08rem) */
+  cursor: pointer;
+}
+
+.kiosk-wrap .kiosk-predefined-btn--selected {
+  background: #1e3a4f;
+  border-color: #1e3a4f;
+  color: #fff;
+}
+
+/* ── Sida 2: uppföljningsruta ── */
+.kiosk-wrap .kiosk-followup {
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 1.25rem;
+  background: #fff8f0;
+  border: 1px solid #f39c12;
+  border-radius: 10px;
+}
+
+.kiosk-wrap .kiosk-followup-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.kiosk-wrap .kiosk-followup-text {
+  font-size: 0.95rem;
+  color: #1e3a4f;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.kiosk-wrap .kiosk-followup-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #f39c12;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* ── Sida 2: Skicka-knapp ── */
+.kiosk-wrap .kiosk-submit-btn {
+  margin-top: 1.25rem;
+  padding: 0.85rem 2.5rem;
+  background: #1e3a4f;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Badge ── */
+.kiosk-wrap .kiosk-badge {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.kiosk-wrap .kiosk-badge-type {
+  margin-right: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.kiosk-wrap .kiosk-badge-type--physical { background: #1e3a4f; }
+.kiosk-wrap .kiosk-badge-type--online   { background: #2980b9; }
+.kiosk-wrap .kiosk-badge-type--enps     { background: #8e44ad; }
+.kiosk-wrap .kiosk-badge-type--other    { background: #7f8c8d; }
+
+.kiosk-wrap .kiosk-badge-dept {
+  color: #1e3a4f;
+  font-weight: 500;
+  margin-right: 0.25rem;
+}
+
+.kiosk-wrap .kiosk-badge-sep {
+  color: #bdc3c7;
+  margin-right: 0.25rem;
+}
+
+.kiosk-wrap .kiosk-badge-tp {
+  color: #7a9aaa;
+}
+
+/* ── Sida 3: tack-vy ── */
+.kiosk-thanks {
+  min-height: 100vh;
+  background: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
+}
+
+.kiosk-thanks-megafon {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  margin-bottom: 1.5rem;
+}
+
+.kiosk-thanks-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.kiosk-thanks-sub {
+  font-size: 1.1rem;
+  color: #7a9aaa;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.kiosk-thanks-countdown {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #1e3a4f;
+  color: #fff;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+/* ── Laddning/fel-vy ── */
+.kiosk-centered {
+  min-height: 100vh;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+}

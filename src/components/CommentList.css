@@ -42,17 +42,9 @@
   color: #fff;
 }
 
-.comment-badge--detractor {
-  background: var(--color-detractor);
-}
-
-.comment-badge--passive {
-  background: var(--color-passive);
-}
-
-.comment-badge--promoter {
-  background: var(--color-promoter);
-}
+.comment-badge--detractor { background: var(--color-detractor); }
+.comment-badge--passive { background: var(--color-passive); }
+.comment-badge--promoter { background: var(--color-promoter); }
 
 .comment-date {
   font-size: 0.8rem;
@@ -74,4 +66,202 @@
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.4;
+}
+
+.comment-followup {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: #fff8f0;
+  border: 1px solid #f39c12;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.comment-followup-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.comment-followup-email {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.comment-followup-label {
+  color: var(--color-text-light);
+  flex: 1;
+}
+
+.comment-followup-copy {
+  margin-left: auto;
+  background: none;
+  border: 1px solid #f39c12;
+  border-radius: 5px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--color-text-light);
+  line-height: 1.4;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.comment-followup-copy:hover {
+  background: #f39c12;
+  color: #fff;
+}
+
+/* ── Sektioner ── */
+.comments-section {
+  margin-bottom: 1.25rem;
+}
+
+.comments-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-light);
+  margin: 0 0 0.5rem 0;
+}
+
+.comments-section-meta {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
+}
+
+/* ── Uppföljningskort ── */
+.comment-item--followup {
+  border-left: 3px solid #f39c12;
+}
+
+.comment-item--resolved {
+  opacity: 0.55;
+  border-left-color: #27ae60;
+}
+
+/* ── Hanterad-checkbox ── */
+.comment-resolved-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-light);
+  user-select: none;
+}
+
+.comment-resolved-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: #27ae60;
+  cursor: pointer;
+}
+
+.comment-item--resolved .comment-resolved-text {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+/* ── Fördefinierade svar expand/collapse ── */
+.predefined-group {
+  background: var(--color-bg);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.predefined-group-section {
+  border-bottom: 1px solid var(--color-border, #e0e8f0);
+}
+
+.predefined-group-section:last-child {
+  border-bottom: none;
+}
+
+.predefined-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.predefined-group-toggle:hover {
+  background: rgba(0,0,0,0.03);
+}
+
+.predefined-group-title {
+  font-weight: 600;
+  flex: 1;
+}
+
+.predefined-group-count {
+  font-size: 0.78rem;
+  color: var(--color-text-light);
+  background: #e8eef2;
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+}
+
+.predefined-group-chevron {
+  font-size: 0.65rem;
+  color: var(--color-text-light);
+}
+
+.predefined-group-list {
+  list-style: none;
+  padding: 0 0 0.4rem 0;
+  margin: 0;
+  border-top: 1px solid var(--color-border, #e0e8f0);
+  background: rgba(0,0,0,0.015);
+}
+
+.predefined-group-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 1rem;
+  font-size: 0.82rem;
+  border-bottom: 1px solid var(--color-border, #e0e8f0);
+}
+
+.predefined-group-item:last-child {
+  border-bottom: none;
+}
+
+.predefined-group-date {
+  color: var(--color-text-light);
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.predefined-group-answer {
+  font-weight: 600;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.predefined-group-comment {
+  color: var(--color-text);
+  font-style: italic;
+  flex: 1;
 }

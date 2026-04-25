@@ -1,0 +1,123 @@
+/* src/components/LoginPage.css */
+
+.login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f0f4f7;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(30, 58, 79, 0.12);
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.login-logo {
+  width: 120px;
+  margin-bottom: 0.25rem;
+}
+
+.login-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1e3a4f;
+  margin: 0;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e3a4f;
+}
+
+.login-input {
+  padding: 0.65rem 0.875rem;
+  border: 1.5px solid #c8d6df;
+  border-radius: 7px;
+  font-size: 1rem;
+  color: #1e3a4f;
+  background: #f7fafc;
+  transition: border-color 0.15s;
+  outline: none;
+}
+
+.login-input:focus {
+  border-color: #1e3a4f;
+  background: #fff;
+}
+
+.login-input:disabled {
+  opacity: 0.6;
+}
+
+.login-error {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #b91c1c;
+  border-radius: 6px;
+  padding: 0.6rem 0.875rem;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.login-btn {
+  background: #1e3a4f;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  margin-top: 0.25rem;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: #2c536e;
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-footer {
+  font-size: 0.8rem;
+  color: #7a9aaa;
+  margin: 0;
+  text-align: center;
+}
+
+.kiosk-wrap .kiosk-duplicate-notice {
+  position: fixed;
+  bottom: 3vh;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 58, 79, 0.93);
+  color: #fff;
+  padding: 0.9em 2em;
+  border-radius: 10px;
+  font-size: clamp(14px, 2vw, 22px);
+  z-index: 100;
+  white-space: nowrap;
+}
