@@ -562,6 +562,16 @@ export function getAllLocalStorageData(organizationId) {
  * som SurveyPage, ReportPage och SettingsPage förväntar sig.
  */
 function assembleChain(chain, departments, touchpoints) {
+  // activeTouchpointId är UI-state (per-användare/per-enhet) och lever i
+  // localStorage — settings.js skriver till nyckeln 'npsActiveTouchpointByChain'.
+  // Vi läser här så att chain-objektet alltid innehåller rätt aktiv mätpunkt
+  // direkt från Supabase-laddningen, utan att App.js behöver merge:a separat.
+  let activeTouchpointId = null;
+  try {
+    const map = JSON.parse(localStorage.getItem('npsActiveTouchpointByChain') || '{}');
+    activeTouchpointId = map[chain.id] ?? null;
+  } catch { /* ignore */ }
+
   return {
     id:           chain.id,
     name:         chain.name,
@@ -588,7 +598,7 @@ function assembleChain(chain, departments, touchpoints) {
       configOverride: t.config_override || null,
       access_token:   t.access_token  || null,
     })),
-    activeTouchpointId: null, // sätts av App.js från localStorage (UI-state)
+    activeTouchpointId,
   };
 }
 
