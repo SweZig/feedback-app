@@ -18,6 +18,7 @@ import { useState, useEffect, useRef } from 'react';
 import ScoreSelector from './ScoreSelector';
 import { supabase } from '../utils/supabaseClient';
 import { getDefaultConfig } from '../utils/settings';
+import { startHeartbeat } from '../utils/kioskHeartbeat';
 import { useFaceCamera } from '../hooks/useFaceCamera';
 import './KioskPage.css';
 
@@ -184,6 +185,17 @@ export default function KioskPage({ accessToken }) {
       .then(data => { setKioskData(data); setLoading(false); })
       .catch(e  => { setError(e.message); setLoading(false); });
   }, [accessToken]);
+
+  // Heartbeat (Sprint A.5) — pingar Supabase var 15:e minut 08:15-21:00 svensk tid
+  // så att admin kan se i Inställningar att kiosken är igång. Kör bara för
+  // fysiska mätpunkter — online/eNPS bryr vi oss inte om för driftövervakning.
+  // Tysta katcher — om en ping failar bryts inte enkätflödet.
+  useEffect(() => {
+    if (!kioskData?.tp?.id) return;
+    if (kioskData.tp.type !== 'physical') return;
+    const stop = startHeartbeat(kioskData.tp.id);
+    return stop;
+  }, [kioskData]);
 
   const config = kioskData
     ? resolveKioskConfig(kioskData.chain, kioskData.tp)
