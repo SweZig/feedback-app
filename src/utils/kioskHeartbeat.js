@@ -124,3 +124,116 @@ export function startHeartbeat(touchpointId) {
 
   return () => clearInterval(intervalId);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// LÄSFUNKTIONER (används av SettingsPage för driftstatus-vy)
+// ═══════════════════════════════════════════════════════════════════
+
+const STATUS_GREEN_MAX_MIN  = 20;  // ≤ 20 min sedan = grön
+const STATUS_YELLOW_MAX_MIN = 45;  // 20–45 min = gul, > 45 min = röd
+
+/**
+ * Beräkna R/A/G-status för en mätpunkt baserat på senaste heartbeat.
+ * Returnerar 'green' | 'yellow' | 'red' | 'closed' | 'never'.
+ */
+export function computeKioskStatus(lastSeenAt, now = new Date()) {
+  if (!isWithinHeartbeatWindow(now)) return 'closed';
+  if (!lastSeenAt) return 'never';
+
+  const lastSeen = lastSeenAt instanceof Date ? lastSeenAt : new Date(lastSeenAt);
+  const ageMinutes = (now.getTime() - lastSeen.getTime()) / 60000;
+
+  if (ageMinutes <= STATUS_GREEN_MAX_MIN)  return 'green';
+  if (ageMinutes <= STATUS_YELLOW_MAX_MIN) return 'yellow';
+  return 'red';
+}
+
+/**
+ * Hämta heartbeat-status + senaste svartidpunkt för en lista touchpoints.
+ *
+ * Returnerar Map<touchpointId, { lastSeenAt: Date|null, lastResponseAt: Date|null }>.
+ * Tysta katcher — vid Supabase-fel returneras tom Map så UI:t inte kraschar.
+ */
+export async function getKioskStatuses(touchpointIds) {
+  const result = new Map();
+  if (!Array.isArray(touchpointIds) || touchpointIds.length === 0) return result;
+
+  for (const id of touchpointIds) {
+    result.set(id, { lastSeenAt: null, lastResponseAt: null });
+  }
+
+  try {
+    const [heartbeats, responses] = await Promise.all([
+      supabase
+        .from('kiosk_heartbeats')
+        .select('touchpoint_id, last_seen_at')
+        .in('touchpoint_id', touchpointIds),
+      supabase
+        .from('responses')
+        .select('touchpoint_id, responded_at')
+        .in('touchpoint_id', touchpointIds)
+        .order('responded_at', { ascending: false }),
+    ]);
+
+    if (heartbeats.data) {
+      for (const h of heartbeats.data) {
+        const entry = result.get(h.touchpoint_id);
+        if (entry) entry.lastSeenAt = new Date(h.last_seen_at);
+      }
+    }
+
+    if (responses.data) {
+      for (const r of responses.data) {
+        const entry = result.get(r.touchpoint_id);
+        if (entry && !entry.lastResponseAt) {
+          entry.lastResponseAt = new Date(r.responded_at);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[heartbeat] getKioskStatuses failed:', e.message);
+  }
+
+  return result;
+}
+
+/**
+ * Returnera mänsklig label + förklaring för en status (för tooltip).
+ */
+export function describeKioskStatus(status, lastSeenAt, lastResponseAt) {
+  const seenAgo = lastSeenAt ? formatRelativeTime(lastSeenAt) : 'aldrig';
+  const respAgo = lastResponseAt ? formatRelativeTime(lastResponseAt) : 'inga svar än';
+
+  switch (status) {
+    case 'green':
+      return `Online · pingade ${seenAgo} · senaste svar ${respAgo}`;
+    case 'yellow':
+      return `Kanske glapp · pingade ${seenAgo} · senaste svar ${respAgo}`;
+    case 'red':
+      return `Offline · pingade ${seenAgo} · senaste svar ${respAgo}`;
+    case 'closed':
+      return `Stängt (utanför 08:15–21:00) · senaste svar ${respAgo}`;
+    case 'never':
+      return `Aldrig sett · senaste svar ${respAgo}`;
+    default:
+      return '';
+  }
+}
+
+/**
+ * Formatera "X min sedan" / "X tim sedan" / "X dagar sedan".
+ * Returnerar "inga svar än" om ts är null.
+ */
+export function formatRelativeTime(ts, now = new Date()) {
+  if (!ts) return 'inga svar än';
+  const date = ts instanceof Date ? ts : new Date(ts);
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60000);
+
+  if (minutes < 1)    return 'precis nu';
+  if (minutes < 60)   return `${minutes} min sedan`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24)     return `${hours} tim sedan`;
+  const days = Math.floor(hours / 24);
+  if (days < 30)      return `${days} ${days === 1 ? 'dag' : 'dagar'} sedan`;
+  return date.toLocaleDateString('sv-SE');
+}

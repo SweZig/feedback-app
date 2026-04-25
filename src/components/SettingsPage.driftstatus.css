@@ -1,0 +1,29 @@
+/* src/components/SettingsPage.driftstatus.css
+ * Driftstatus-prick (Sprint A.5 Del 2 — Alternativ A: alltid synlig)
+ *
+ * En 10px prick bredvid touchpoint-namnet på fysiska mätpunkter.
+ * Hover ger tooltip med detaljerad status. Ingen toggle, ingen extra rad.
+ */
+
+.tp-driftstatus-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  cursor: help;
+  transition: transform 0.15s ease;
+}
+
+.tp-driftstatus-dot:hover {
+  transform: scale(1.4);
+}
+
+.tp-driftstatus-dot--green   { background: #27ae60; border-color: #1e8449; }
+.tp-driftstatus-dot--yellow  { background: #f39c12; border-color: #b9770e; }
+.tp-driftstatus-dot--red     { background: #e74c3c; border-color: #a93226; }
+.tp-driftstatus-dot--closed  { background: #b8c5cf; border-color: #8a9ba8; }
+.tp-driftstatus-dot--never   { background: transparent; border-color: #b8c5cf; }
