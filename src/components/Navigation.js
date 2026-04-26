@@ -3,11 +3,12 @@ import { useRole } from '../contexts/RoleContext';
 import './Navigation.css';
 
 // Tabbarna och deras permission-nycklar. Order = visningsordning.
+// Sprint A.7: 'admin'-fliken borttagen — användarhantering ligger nu under
+// Inställningar → Användare och styrs av view_tab_settings + canManage-roll.
 const NAV_TABS = [
   { key: 'survey',   label: 'Enkät',         perm: 'view_tab_survey'   },
   { key: 'report',   label: 'Rapport',       perm: 'view_tab_report'   },
   { key: 'settings', label: 'Inställningar', perm: 'view_tab_settings' },
-  { key: 'admin',    label: 'Användare',     perm: 'view_tab_admin'    },
 ];
 
 function Navigation({ currentPage, onNavigate, activeCustomer, user, onSignOut }) {

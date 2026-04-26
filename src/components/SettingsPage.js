@@ -8,7 +8,7 @@
 // `alert("Fel: " + e.message)` vid fel. Vid lyckad mutation kallas
 // refresh() som triggar App.js att ladda om kedjorna från Supabase.
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   getActiveChainId, setActiveChainId, setActiveTouchpoint,
   getTouchpointUrl, getDefaultConfig, getEffectiveConfig,
@@ -22,8 +22,20 @@ import {
   resetChainResponses, resetTouchpointResponses,
 } from '../utils/chainOperations';
 import { getKioskStatuses, computeKioskStatus, describeKioskStatus } from '../utils/kioskHeartbeat';
+import {
+  getOrgUsers, inviteUser, updateUserRole,
+  removeUserFromOrg, getMyRole,
+  ROLE_LABELS, ROLE_ORDER,
+} from '../utils/userManagement';
+import { getCurrentUser } from '../utils/storageAdapter';
+import {
+  PERMISSION_GROUPS, DEFAULT_PERMISSIONS,
+  getPermissions, savePermissions,
+} from '../utils/permissions';
+import { useRole } from '../contexts/RoleContext';
 import './SettingsPage.css';
 import './SettingsPage.driftstatus.css';
+import './AdminPage.css';
 
 // Sprint A.5 Del 2: pollar driftstatus var 30s i Avdelningar-vyn
 const DRIFTSTATUS_POLL_MS = 30 * 1000;
@@ -49,6 +61,7 @@ const TYPE_BADGE = {
 
 const MENU_ITEMS = [
   { key: 'chains', label: 'Kedjor' },
+  { key: 'users', label: 'Användare' },
   { key: 'departments', label: 'Avdelningar' },
   { key: 'config', label: 'Konfiguration' },
 ];
@@ -569,6 +582,398 @@ function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
 
 
 // ════════════════════════════════════════════════════════════
+// USERS-SEKTION (flyttad från AdminPage i Sprint A.7)
+// ════════════════════════════════════════════════════════════
+//
+// Användarhantering, behörigheter och rollsimulering — allt knutet till
+// den aktiva kedjans organisation. chain.organization_id = chain.id i
+// detta system (1-till-1), men vi använder organization_id-fältet om
+// det finns och faller tillbaka på id för säkerhets skull.
+//
+// Designval:
+// - Subflikar (Användare/Behörigheter/Rollsimulering) — samma mönster som
+//   Konfiguration-fliken använder för fysisk/online/övriga/eNPS
+// - Använder befintliga AdminPage.css-klasser ('admin-*'-prefix) för att
+//   minimera regression — ingen omstuvning av styling
+// - Återanvänder DeleteDialog från SettingsPage för "ta bort användare"
+
+const USERS_ROLES = ['owner', 'admin', 'manager', 'analytiker'];
+
+function RoleBadge({ role }) {
+  return <span className={`role-badge role-badge--${role}`}>{ROLE_LABELS[role] || role}</span>;
+}
+
+function InviteForm({ organizationId, myRole, onInvited }) {
+  const [email, setEmail]     = useState('');
+  const [role, setRole]       = useState('manager');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [success, setSuccess] = useState('');
+
+  const availableRoles = myRole === 'owner'
+    ? ['admin', 'manager', 'analytiker']
+    : ['manager', 'analytiker'];
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setError(''); setSuccess(''); setLoading(true);
+    try {
+      await inviteUser(email.trim(), role, organizationId);
+      setSuccess(`Inbjudan skickad till ${email.trim()}`);
+      setEmail('');
+      onInvited?.();
+    } catch (err) {
+      setError(err.message || 'Inbjudan misslyckades');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="admin-invite-form">
+      <h3 className="admin-section-title">Bjud in användare</h3>
+      <form className="admin-form-row" onSubmit={handleSubmit}>
+        <input className="admin-input" type="email" placeholder="e-postadress"
+          value={email} onChange={(e) => setEmail(e.target.value)} disabled={loading} required />
+        <select className="admin-select" value={role}
+          onChange={(e) => setRole(e.target.value)} disabled={loading}>
+          {availableRoles.map((r) => (
+            <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+          ))}
+        </select>
+        <button className="admin-btn admin-btn--primary" type="submit" disabled={loading}>
+          {loading ? 'Skickar...' : 'Skicka inbjudan'}
+        </button>
+      </form>
+      {error   && <p className="admin-msg admin-msg--error">✗ {error}</p>}
+      {success && <p className="admin-msg admin-msg--success">✓ {success}</p>}
+    </div>
+  );
+}
+
+function UserList({ users, currentUserId, myRole, onRoleChange, onRemove }) {
+  if (users.length === 0) return <p className="admin-empty">Inga användare hittades.</p>;
+  return (
+    <div className="admin-user-list">
+      {users.map((u) => {
+        const isMe = u.userId === currentUserId;
+        const canEdit = !isMe && (myRole === 'owner' || (myRole === 'admin' && u.role !== 'owner'));
+        return (
+          <div key={u.memberId} className={`admin-user-card ${isMe ? 'admin-user-card--me' : ''}`}>
+            <div className="admin-user-info">
+              <span className="admin-user-email">{u.email}</span>
+              {u.displayName && <span className="admin-user-name">{u.displayName}</span>}
+              {isMe && <span className="admin-user-you">Du</span>}
+              {u.lastLogin && (
+                <span className="admin-user-login">
+                  Senast inloggad: {new Date(u.lastLogin).toLocaleDateString('sv-SE')}
+                </span>
+              )}
+            </div>
+            <div className="admin-user-actions">
+              {canEdit ? (
+                <select className="admin-select admin-select--sm" value={u.role}
+                  onChange={(e) => onRoleChange(u.memberId, e.target.value)}>
+                  {ROLE_ORDER.filter((r) => myRole === 'owner' || r !== 'owner').map((r) => (
+                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                  ))}
+                </select>
+              ) : (
+                <RoleBadge role={u.role} />
+              )}
+              {canEdit && (
+                <button className="admin-btn admin-btn--icon" title="Ta bort"
+                  onClick={() => onRemove(u)}>×</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function UsersTab({ organizationId, chainName }) {
+  const [users, setUsers]                 = useState([]);
+  const [myRole, setMyRole]               = useState(null);
+  const [currentUser, setCurrentUser]     = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [confirmRemove, setConfirmRemove] = useState(null);
+  const [error, setError]                 = useState('');
+
+  const loadUsers = useCallback(async () => {
+    if (!organizationId) return;
+    setLoading(true);
+    try {
+      const [user, fetchedUsers, role] = await Promise.all([
+        getCurrentUser(),
+        getOrgUsers(organizationId),
+        getMyRole(organizationId),
+      ]);
+      setCurrentUser(user);
+      setUsers(fetchedUsers);
+      setMyRole(role);
+    } catch (err) {
+      setError('Kunde inte ladda användare: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  async function handleRoleChange(memberId, newRole) {
+    try {
+      await updateUserRole(memberId, newRole);
+      await loadUsers();
+    } catch (err) {
+      setError('Kunde inte ändra roll: ' + err.message);
+    }
+  }
+
+  async function handleRemoveConfirmed() {
+    if (!confirmRemove) return;
+    try {
+      await removeUserFromOrg(confirmRemove.memberId);
+      setConfirmRemove(null);
+      await loadUsers();
+    } catch (err) {
+      setError('Kunde inte ta bort användare: ' + err.message);
+    }
+  }
+
+  const canManage = myRole === 'owner' || myRole === 'admin';
+
+  return (
+    <>
+      {error && (
+        <div className="admin-error-banner" onClick={() => setError('')}>
+          ⚠ {error} <span className="admin-error-close">×</span>
+        </div>
+      )}
+
+      {canManage && organizationId && (
+        <InviteForm organizationId={organizationId} myRole={myRole} onInvited={loadUsers} />
+      )}
+
+      <div className="admin-users-section">
+        <h3 className="admin-section-title">
+          Användare{chainName ? ` — ${chainName}` : ''}
+          {!loading && <span className="admin-user-count">{users.length} st</span>}
+          {myRole && <span style={{ marginLeft: '0.75rem' }}><RoleBadge role={myRole} /></span>}
+        </h3>
+        {loading ? <p className="admin-empty">Laddar...</p> : (
+          <UserList
+            users={users}
+            currentUserId={currentUser?.id}
+            myRole={myRole}
+            onRoleChange={handleRoleChange}
+            onRemove={(u) => setConfirmRemove(u)}
+          />
+        )}
+      </div>
+
+      {confirmRemove && (
+        <DeleteDialog
+          message={`Ta bort ${confirmRemove.email} från organisationen?`}
+          onConfirm={handleRemoveConfirmed}
+          onCancel={() => setConfirmRemove(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function PermissionsMatrix({ organizationId }) {
+  const { reloadRole } = useRole();
+  const [perms, setPerms]   = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [error, setError]   = useState('');
+
+  useEffect(() => {
+    if (!organizationId) return;
+    getPermissions(organizationId)
+      .then(setPerms)
+      .catch(() => setPerms({ ...DEFAULT_PERMISSIONS }));
+  }, [organizationId]);
+
+  function toggle(feature, role) {
+    if (role === 'owner') return;
+    setPerms((prev) => ({
+      ...prev,
+      [feature]: { ...prev[feature], [role]: !prev[feature][role] },
+    }));
+    setSaved(false);
+  }
+
+  async function handleSave() {
+    setSaving(true); setError('');
+    try {
+      await savePermissions(organizationId, perms);
+      // Ladda om roll/permissions i RoleContext så Navigation och Rollsimulering
+      // reflekterar ändringen direkt (ingen refresh krävs).
+      await reloadRole();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError('Kunde inte spara: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!perms) return <p className="admin-empty">Laddar behörigheter...</p>;
+
+  return (
+    <div className="admin-perms">
+      <div className="admin-perms-header">
+        <p className="admin-perms-desc">
+          Kryssa i vilka roller som ska ha tillgång till varje funktion.
+          Owner har alltid full tillgång och kan inte ändras.
+        </p>
+        <div className="admin-perms-actions">
+          <button className="admin-btn admin-btn--ghost admin-btn--sm"
+            onClick={() => { setPerms({ ...DEFAULT_PERMISSIONS }); setSaved(false); }}>
+            Återställ till standard
+          </button>
+          <button className="admin-btn admin-btn--primary admin-btn--sm"
+            onClick={handleSave} disabled={saving}>
+            {saving ? 'Sparar...' : 'Spara behörigheter'}
+          </button>
+        </div>
+      </div>
+
+      {saved && <p className="admin-msg admin-msg--success">✓ Behörigheter sparade</p>}
+      {error && <p className="admin-msg admin-msg--error">✗ {error}</p>}
+
+      <div className="admin-perms-table-wrap">
+        <table className="admin-perms-table">
+          <thead>
+            <tr>
+              <th className="admin-perms-th-feature">Funktion</th>
+              {USERS_ROLES.map((r) => (
+                <th key={r} className="admin-perms-th-role"><RoleBadge role={r} /></th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {PERMISSION_GROUPS.map((group) => (
+              <React.Fragment key={group.group}>
+                <tr className="admin-perms-group-row">
+                  <td colSpan={USERS_ROLES.length + 1} className="admin-perms-group-label">
+                    {group.group}
+                  </td>
+                </tr>
+                {group.features.map((feature) => (
+                  <tr key={feature.key} className="admin-perms-row">
+                    <td className="admin-perms-feature">{feature.label}</td>
+                    {USERS_ROLES.map((role) => (
+                      <td key={role} className="admin-perms-cell">
+                        <input
+                          type="checkbox"
+                          className="admin-perms-checkbox"
+                          checked={role === 'owner' ? true : (perms[feature.key]?.[role] ?? false)}
+                          onChange={() => toggle(feature.key, role)}
+                          disabled={role === 'owner'}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function RoleSimulator() {
+  const { realRole, simulatedRole, startSimulation, stopSimulation } = useRole();
+  const simulatableRoles = ROLE_ORDER.filter((r) => r !== 'owner' && r !== realRole);
+
+  return (
+    <div className="admin-simulator">
+      <h3 className="admin-section-title">Rollsimulering</h3>
+      <p className="admin-perms-desc">
+        Simulera hur appen ser ut för olika användarroller. Bara du ser simuleringen —
+        din faktiska roll påverkas inte.
+      </p>
+
+      {simulatedRole ? (
+        <div className="admin-sim-active">
+          <div className="admin-sim-banner">
+            <span>🎭 Simulerar <strong>{ROLE_LABELS[simulatedRole]}</strong></span>
+            <button className="admin-btn admin-btn--danger admin-btn--sm" onClick={stopSimulation}>
+              Avsluta simulering
+            </button>
+          </div>
+          <p className="admin-perms-desc" style={{ marginTop: '0.5rem' }}>
+            Navigera runt i appen för att se vad denna roll kan komma åt.
+            Kom tillbaka hit för att avsluta.
+          </p>
+        </div>
+      ) : (
+        <div className="admin-sim-buttons">
+          {simulatableRoles.map((role) => (
+            <button key={role} className="admin-sim-btn" onClick={() => startSimulation(role)}>
+              <span>🎭 Simulera {ROLE_LABELS[role]}</span>
+              <RoleBadge role={role} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsersSection({ chain }) {
+  const [tab, setTab] = useState('users');
+
+  const SUB_TABS = [
+    { key: 'users',       label: 'Användare' },
+    { key: 'permissions', label: 'Behörigheter' },
+    { key: 'simulation',  label: 'Rollsimulering' },
+  ];
+
+  if (!chain) {
+    return (
+      <div className="settings-card">
+        <h2>Användare</h2>
+        <p className="settings-empty">Välj en kedja under Kedjor.</p>
+      </div>
+    );
+  }
+
+  // chain.id = organization_id i detta system (1-till-1). Vi använder
+  // organization_id om det finns för defensiv kompatibilitet, annars id.
+  const organizationId = chain.organization_id || chain.id;
+
+  return (
+    <div className="settings-card">
+      <h2>Användare — {chain.name}</h2>
+      <p className="settings-card-desc">
+        Hantera vilka som har tillgång till {chain.name} och vad de får göra.
+      </p>
+      <div className="config-tabs">
+        {SUB_TABS.map((t) => (
+          <button key={t.key}
+            className={`config-tab ${tab === t.key ? 'config-tab--active' : ''}`}
+            onClick={() => setTab(t.key)}>{t.label}</button>
+        ))}
+      </div>
+      {tab === 'users'       && <UsersTab organizationId={organizationId} chainName={chain.name} />}
+      {tab === 'permissions' && <PermissionsMatrix organizationId={organizationId} />}
+      {tab === 'simulation'  && <RoleSimulator />}
+    </div>
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════
 // HUVUDKOMPONENT
 // ════════════════════════════════════════════════════════════
 
@@ -1030,6 +1435,8 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
             )}
           </div>
         )}
+
+        {section === 'users' && <UsersSection chain={active} />}
 
         {section === 'departments' && (
           <div className="settings-card">

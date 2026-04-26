@@ -4,6 +4,10 @@
 // så nya/borttagna organisationer plockas upp utan re-login.
 // localStorage-fallbacken (getActiveCustomer) är borttagen — Supabase
 // är ensam källa, vid fel sätts tom state.
+//
+// Sprint A.7: AdminPage borttagen. Användarhantering, behörigheter och
+// rollsimulering ligger nu under Inställningar → Användare och knyts mot
+// den aktiva kedjans organisation istället för en separat dropdown.
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
@@ -22,7 +26,6 @@ import Navigation from './components/Navigation';
 import SurveyPage from './components/SurveyPage';
 import ReportPage from './components/ReportPage';
 import SettingsPage from './components/SettingsPage';
-import AdminPage from './components/AdminPage';
 import LoginPage from './components/LoginPage';
 import KioskPage from './components/KioskPage';
 import './App.css';
@@ -36,7 +39,6 @@ const NAV_PAGES = [
   { key: 'survey',   perm: 'view_tab_survey'   },
   { key: 'report',   perm: 'view_tab_report'   },
   { key: 'settings', perm: 'view_tab_settings' },
-  { key: 'admin',    perm: 'view_tab_admin'    },
 ];
 
 // Kiosk-läge: om ?tp=<access_token> finns i URL — visa enkät utan inloggning
@@ -179,7 +181,6 @@ function AppInner({ user, activeCustomer, allCustomers, onRefresh, onChainChange
                 initialChains={allCustomers}
               />
             )}
-            {page === 'admin' && can('view_tab_admin') && <AdminPage />}
           </>
         )}
       </main>
