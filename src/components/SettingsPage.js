@@ -8,7 +8,7 @@
 // `alert("Fel: " + e.message)` vid fel. Vid lyckad mutation kallas
 // refresh() som triggar App.js att ladda om kedjorna från Supabase.
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   getActiveChainId, setActiveChainId, setActiveTouchpoint,
   getTouchpointUrl, getDefaultConfig, getEffectiveConfig,
@@ -21,7 +21,12 @@ import {
   applyConfigToType, migrateTouchpointsFromDept,
   resetChainResponses, resetTouchpointResponses,
 } from '../utils/chainOperations';
+import { getKioskStatuses, computeKioskStatus, describeKioskStatus } from '../utils/kioskHeartbeat';
 import './SettingsPage.css';
+import './SettingsPage.driftstatus.css';
+
+// Sprint A.5 Del 2: pollar driftstatus var 30s i Avdelningar-vyn
+const DRIFTSTATUS_POLL_MS = 30 * 1000;
 
 
 // ════════════════════════════════════════════════════════════
@@ -625,6 +630,40 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
   const touchpoints = active?.touchpoints || [];
 
 
+  // ── Driftstatus (Sprint A.5 Del 2) ────────────────────
+  // Alltid synlig prick på fysiska mätpunkter. Pollar var 30s i Avdelningar-vyn.
+  // tick driver om-rendering var minut så "X min sedan" i tooltips håller sig fräsch.
+  const physicalTpIds = useMemo(
+    () => touchpoints.filter(tp => (tp.type || 'physical') === 'physical').map(tp => tp.id),
+    [touchpoints]
+  );
+  const [driftStatusMap, setDriftStatusMap] = useState(() => new Map());
+  // eslint-disable-next-line no-unused-vars
+  const [driftTick, setDriftTick] = useState(0);
+
+  useEffect(() => {
+    if (section !== 'departments') return;
+    if (physicalTpIds.length === 0) return;
+
+    let cancelled = false;
+    const fetchStatuses = async () => {
+      const statuses = await getKioskStatuses(physicalTpIds);
+      if (!cancelled) setDriftStatusMap(statuses);
+    };
+
+    fetchStatuses();
+    const intervalId = setInterval(fetchStatuses, DRIFTSTATUS_POLL_MS);
+
+    return () => { cancelled = true; clearInterval(intervalId); };
+  }, [section, physicalTpIds]);
+
+  useEffect(() => {
+    if (section !== 'departments') return;
+    const id = setInterval(() => setDriftTick(v => v + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, [section]);
+
+
   // ── Chains ──────────────────────────────────────────────
 
   async function handleAddChain(e) {
@@ -1059,12 +1098,27 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                   <ul className="tp-list">
                                     {deptTps.map((tp) => {
                                       const isActive = active.activeTouchpointId === tp.id;
+                                      const isPhysical = (tp.type || 'physical') === 'physical';
+                                      const driftData = isPhysical ? driftStatusMap.get(tp.id) : null;
+                                      const driftStatus = isPhysical
+                                        ? computeKioskStatus(driftData?.lastSeenAt)
+                                        : null;
+                                      const driftTooltip = isPhysical
+                                        ? describeKioskStatus(driftStatus, driftData?.lastSeenAt, driftData?.lastResponseAt)
+                                        : '';
                                       return (
                                         <li key={tp.id} className={'tp-item tp-item--in-dept tp-item--has-token' + (isActive ? ' tp-item--active' : '')}>
                                           <div className="tp-item-top">
                                             <button className="tp-detail-btn" onClick={() => setSelectedTp({ tp, dept: d })}>
                                               <span className={`dept-badge ${TYPE_BADGE[tp.type] || ''}`}>{TYPE_LABELS[tp.type] || tp.type}</span>
                                               <span className="tp-name">{tp.name}</span>
+                                              {isPhysical && (
+                                                <span
+                                                  className={`tp-driftstatus-dot tp-driftstatus-dot--${driftStatus || 'never'}`}
+                                                  title={driftTooltip}
+                                                  aria-label={driftTooltip}
+                                                />
+                                              )}
                                               <span className="tp-mode-badge">{MODE_LABELS[tp.mode] || tp.mode}</span>
                                             </button>
                                             <button className={`dept-activate-btn ${isActive ? 'dept-activate-btn--on' : ''}`} onClick={() => handleSetActiveTp(tp.id)}>{isActive ? 'Aktiv' : 'Sätt aktiv'}</button>
