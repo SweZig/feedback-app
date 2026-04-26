@@ -28,6 +28,14 @@ const FA_LOGO      = process.env.PUBLIC_URL + '/FA_Original_transparent-01.svg';
 const FOLLOW_UP_THRESHOLD = 2;
 const TYPE_SHORT = { physical: 'F', online: 'O', enps: 'eNPS', other: 'Ö' };
 
+// ── Auto-reload-konstanter (Sprint A.6) ──
+// Reload appen var 4:e timme för att hämta senaste bundle. Fungerar som
+// snabbare versions-rollout än Fully's egen reload-watchdog. Jitter sprider
+// lasten så inte alla plattor reloadar exakt samtidigt mot Vercel/Supabase.
+const AUTO_RELOAD_BASE_MS    = 4 * 60 * 60 * 1000; // 4 timmar
+const AUTO_RELOAD_JITTER_MS  = 10 * 60 * 1000;     // ±10 minuter slump
+const AUTO_RELOAD_RETRY_MS   = 60 * 1000;          // försök igen efter 1 min om mitt-i-svar
+
 // ── Hämta touchpoint + kedja-config från Supabase via access_token ──
 async function fetchKioskData(accessToken) {
   const { data: tp, error: tpError } = await supabase
@@ -177,6 +185,14 @@ export default function KioskPage({ accessToken }) {
   const [faceData, setFaceData]                 = useState(null);
   const timerRef = useRef(null);
 
+  // Heartbeat-controller (Sprint A.6) — pingNow() kan anropas vid user-interaction
+  // för att garantera att vi får en ping även om setInterval pausats av WebView.
+  const heartbeatRef = useRef({ stop: () => {}, pingNow: () => {} });
+
+  // Step-ref så auto-reload-timern kan kolla nuvarande step utan stale closure
+  const stepRef = useRef(step);
+  useEffect(() => { stepRef.current = step; }, [step]);
+
   // ── Kamera + ansiktsanalys ──
   const { videoRef, captureAnalysis } = useFaceCamera();
 
@@ -186,15 +202,60 @@ export default function KioskPage({ accessToken }) {
       .catch(e  => { setError(e.message); setLoading(false); });
   }, [accessToken]);
 
-  // Heartbeat (Sprint A.5) — pingar Supabase var 15:e minut 08:15-21:00 svensk tid
+  // Heartbeat (Sprint A.5+A.6) — pingar Supabase var 15:e minut 08:15-21:00 svensk tid
   // så att admin kan se i Inställningar att kiosken är igång. Kör bara för
   // fysiska mätpunkter — online/eNPS bryr vi oss inte om för driftövervakning.
+  //
+  // Sprint A.6: startHeartbeat returnerar nu { stop, pingNow }. pingNow lagras i
+  // heartbeatRef så handleScoreSelect kan trigga manuell ping vid user-interaction.
+  // Detta är nödvändigt eftersom Chrome 81 WebView (SM-T510 Android 10) pausar
+  // setInterval när skärmen släcks och inte tillförlitligt återupptar vid wakeup.
+  //
   // Tysta katcher — om en ping failar bryts inte enkätflödet.
   useEffect(() => {
     if (!kioskData?.tp?.id) return;
     if (kioskData.tp.type !== 'physical') return;
-    const stop = startHeartbeat(kioskData.tp.id);
-    return stop;
+
+    const controller = startHeartbeat(kioskData.tp.id);
+    heartbeatRef.current = controller;
+
+    return () => {
+      controller.stop();
+      heartbeatRef.current = { stop: () => {}, pingNow: () => {} };
+    };
+  }, [kioskData]);
+
+  // Auto-reload (Sprint A.6) — reloadar appen var 4:e timme (±10 min jitter)
+  // för att hämta senaste bundle. Kompletterar Fully's egen reload-watchdog
+  // som agerar fallback om JS-timern dör. Reload sker BARA på steg 1 så
+  // användare som är mitt i ett svar inte avbryts.
+  //
+  // Bara fysiska kiosker — online/eNPS-länkar besöks bara kort av en användare
+  // och behöver ingen periodisk reload.
+  useEffect(() => {
+    if (!kioskData?.tp?.id) return;
+    if (kioskData.tp.type !== 'physical') return;
+
+    const initialDelay = AUTO_RELOAD_BASE_MS + Math.random() * AUTO_RELOAD_JITTER_MS;
+    let timerId = null;
+
+    function tryReload() {
+      if (stepRef.current === 1) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[auto-reload] reloading page');
+        }
+        window.location.reload();
+      } else {
+        // Användaren är mitt i ett svar — vänta tills tack-vyn nollställt till steg 1
+        timerId = setTimeout(tryReload, AUTO_RELOAD_RETRY_MS);
+      }
+    }
+
+    timerId = setTimeout(tryReload, initialDelay);
+
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
   }, [kioskData]);
 
   const config = kioskData
@@ -238,7 +299,7 @@ export default function KioskPage({ accessToken }) {
            willFollowUp;
   }
 
-  // Nedräkning på steg 3
+  // Tack-vy nedräkning
   useEffect(() => {
     if (step !== 3) return;
     setCountdown(countdownSeconds);
@@ -268,7 +329,7 @@ export default function KioskPage({ accessToken }) {
   async function submit(s, c, pa, email = '', face = null) {
     if (!kioskData) { console.error('[Kiosk] submit: kioskData är null'); return; }
     try {
-      const result = await saveKioskResponse({
+      await saveKioskResponse({
         touchpointId:   kioskData.tp.id,
         chainId:        kioskData.tp.chain_id,
         score:          s,
@@ -289,6 +350,11 @@ export default function KioskPage({ accessToken }) {
   // ── Score-val: navigera direkt, kör kameraanalys i bakgrunden ──
   function handleScoreSelect(val) {
     setScore(val);
+
+    // Sprint A.6: trigga heartbeat vid user-interaction. Throttlas internt.
+    // Detta garanterar att vi ser kiosken som "online" så fort någon faktiskt
+    // använder den, även om setInterval pausats av WebView över natten.
+    heartbeatRef.current.pingNow();
 
     // Navigera omedelbart — blockerar inte UI
     if (step2HasContent(val)) {
@@ -464,7 +530,7 @@ export default function KioskPage({ accessToken }) {
     <>
       {cameraVideo}
       <div className="kiosk-wrap">
-<div className="kiosk-logo-header">
+        <div className="kiosk-logo-header">
           <img src={logo} alt="Logo"
             onError={e => { e.target.src = FA_LOGO; }} />
         </div>
