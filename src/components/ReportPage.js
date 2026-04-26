@@ -6,12 +6,38 @@ import { TYPE_LABELS } from '../utils/settings';
 import CommentList from './CommentList';
 import './ReportPage.css';
 
+// Tidsfilter använder en `key` istället för rakt antal dagar, eftersom
+// "Idag" och "Igår" är kalenderbaserade (midnatt-till-midnatt) och
+// inte kan uttryckas som ett rullande N-dagars fönster.
 const TIME_FILTERS = [
-  { label: '7 dagar', days: 7 },
-  { label: '30 dagar', days: 30 },
-  { label: '90 dagar', days: 90 },
-  { label: 'Alla', days: null },
+  { key: 'today',     label: 'Idag' },
+  { key: 'yesterday', label: 'Igår' },
+  { key: '7d',        label: '7 dagar',  days: 7 },
+  { key: '14d',       label: '14 dagar', days: 14 },
+  { key: '30d',       label: '30 dagar', days: 30 },
+  { key: '90d',       label: '90 dagar', days: 90 },
+  { key: 'all',       label: 'Alla' },
 ];
+
+// Returnerar { from, to } i ms (epoch). `to` är exklusivt.
+function getFilterRange(key) {
+  if (key === 'today') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return { from: start.getTime(), to: Infinity };
+  }
+  if (key === 'yesterday') {
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { from: start.getTime(), to: end.getTime() };
+  }
+  const filter = TIME_FILTERS.find((f) => f.key === key);
+  if (filter?.days) return { from: Date.now() - filter.days * 86400000, to: Infinity };
+  return { from: 0, to: Infinity };
+}
 
 const DAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 
@@ -309,12 +335,12 @@ function DemographicsCard({ responses, duplicateCount }) {
 }
 
 export default function ReportPage({ activeCustomer }) {
-  const [filterDays, setFilterDays] = useState(null);
+  const [filterKey, setFilterKey] = useState('all');
   const [dateRange, setDateRange] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [filterMode, setFilterMode] = useState('all');
-  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly'
+  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly' | 'touchpoints'
   const [focusImprovements, setFocusImprovements] = useState(false);
   const [showDemographics, setShowDemographics] = useState(() => {
     try { return localStorage.getItem('report_show_demographics') === 'true'; } catch { return false; }
@@ -388,6 +414,9 @@ export default function ReportPage({ activeCustomer }) {
   // `undefined` — då blir filtreringen tom (rapporten visar 0 svar i ~100ms).
   const responseList = supabaseResponses || [];
 
+  // Beräkna tidsfönster en gång per render baserat på valt preset.
+  const range = getFilterRange(filterKey);
+
   const responses = dateRange
     ? responseList.filter(r => {
         const ts = r.timestamp;
@@ -397,22 +426,22 @@ export default function ReportPage({ activeCustomer }) {
         return ts >= fromTs && ts <= toTs && tpOk;
       })
     : responseList.filter(r => {
-        const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
         const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
-        return r.timestamp >= cutoff && tpOk;
+        return r.timestamp >= range.from && r.timestamp < range.to && tpOk;
       });
 
-  // För Mätpunkter-vyn: datumfiltrerat men inte tp-filtrerat
-  const allResponses = dateRange
+  // För Mätpunkter-vyn: datumfiltrerat men inte tp-filtrerat.
+  // Filtrera bort dubbletter direkt så att Översikt, Veckoanalys och
+  // Mätpunkter alla redovisar samma antal svar (annars syns "53" i
+  // Översikt och "54" i Veckoanalys/Mätpunkter när 1 dubblett finns).
+  const allResponses = (dateRange
     ? responseList.filter(r => {
         const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
         const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
         return r.timestamp >= fromTs && r.timestamp <= toTs;
       })
-    : responseList.filter(r => {
-        const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
-        return r.timestamp >= cutoff;
-      });
+    : responseList.filter(r => r.timestamp >= range.from && r.timestamp < range.to)
+  ).filter(r => !r.isDuplicate);
 
   // Filtrera bort dubbletter från NPS-beräkningar
   const npsResponses = responses.filter(r => !r.isDuplicate);
@@ -473,7 +502,11 @@ export default function ReportPage({ activeCustomer }) {
   const selectValue = (filterMode.startsWith('dept:') || filterMode.startsWith('tp:')) ? filterMode : '';
   const periodLabel = dateRange
     ? (fromDate && toDate ? `${fromDate} – ${toDate}` : 'Datumintervall')
-    : TIME_FILTERS.find((f) => f.days === filterDays)?.label || 'Alla';
+    : TIME_FILTERS.find((f) => f.key === filterKey)?.label || 'Alla';
+
+  // Filterdropdownen visas på Översikt och Veckoanalys (men inte på
+  // Mätpunkter — där är hela poängen att se alla mätpunkter parallellt).
+  const showDeptFilter = hasDepts && (activeView === 'overview' || activeView === 'weekly');
 
   return (
     <div className="report">
@@ -499,8 +532,8 @@ export default function ReportPage({ activeCustomer }) {
         )}
       </div>
 
-      {/* Filters – only shown for Översikt (dept/tp drill-down) */}
-      {hasDepts && activeView === 'overview' && (
+      {/* Filter på avdelning / mätpunkt — visas för Översikt och Veckoanalys */}
+      {showDeptFilter && (
         <div className="report-card">
           <select className="report-dept-select" value={selectValue}
             onChange={(e) => { setFilterMode(e.target.value || 'all'); }}
@@ -524,9 +557,9 @@ export default function ReportPage({ activeCustomer }) {
 
       <div className="report-filters">
         {TIME_FILTERS.map((f) => (
-          <button key={f.label}
-            className={`filter-btn ${!dateRange && filterDays === f.days ? 'filter-btn--active' : ''}`}
-            onClick={() => { setDateRange(false); setFilterDays(f.days); }}>{f.label}</button>
+          <button key={f.key}
+            className={`filter-btn ${!dateRange && filterKey === f.key ? 'filter-btn--active' : ''}`}
+            onClick={() => { setDateRange(false); setFilterKey(f.key); }}>{f.label}</button>
         ))}
         <button
           className="filter-btn filter-btn--refresh"
@@ -544,14 +577,22 @@ export default function ReportPage({ activeCustomer }) {
         </div>
       )}
 
-      {/* ===== WEEKLY VIEW ===== */}
+      {/* ===== WEEKLY VIEW =====
+         Använder npsResponses (tp-filtrerat + dubblettrensat) så att
+         filtervalet på avdelning/mätpunkt faktiskt påverkar både
+         TotalChainCard och heatmap, och så att antalet svar synkar
+         med Översikt. */}
       {activeView === 'weekly' && (
         <>
-          <TotalChainCard allResponses={allResponses} periodLabel={periodLabel} />
+          <TotalChainCard
+            allResponses={npsResponses}
+            periodLabel={periodLabel}
+            title={filterMode === 'all' ? 'Total Kedja' : 'Filtrerat urval'}
+          />
           <div className="report-card">
             <h3>Veckoanalys – fysiska mätpunkter</h3>
             <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar.</p>
-            <WeeklyHeatmap responses={allResponses} touchpoints={touchpoints} />
+            <WeeklyHeatmap responses={npsResponses} touchpoints={touchpoints} />
           </div>
         </>
       )}
