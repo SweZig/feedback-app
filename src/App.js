@@ -1,4 +1,10 @@
 // src/App.js
+//
+// Sprint B: loadActiveCustomer hämtar nu org_members vid varje refresh
+// så nya/borttagna organisationer plockas upp utan re-login.
+// localStorage-fallbacken (getActiveCustomer) är borttagen — Supabase
+// är ensam källa, vid fel sätts tom state.
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   getActiveChainId,
@@ -10,6 +16,7 @@ import {
   signOut,
   getAssembledCustomers,
 } from './utils/storageAdapter';
+import { supabase } from './utils/supabaseClient';
 import { RoleProvider, useRole } from './contexts/RoleContext';
 import Navigation from './components/Navigation';
 import SurveyPage from './components/SurveyPage';
@@ -184,25 +191,47 @@ function App() {
   const [user, setUser]                     = useState(undefined);
   const [authLoading, setAuthLoading]       = useState(true);
   const [orgId, setOrgId]                   = useState(null);
-  const [allOrgIds, setAllOrgIds]           = useState([]);
   const [activeCustomer, setActiveCustomer] = useState(null);
   const [allCustomers, setAllCustomers]     = useState([]);
   const debounceRef                         = useRef(null);
-  const allOrgIdsRef                        = useRef([]);
 
-  // Synka allOrgIds till ref så callbacks alltid har senaste värdet
-  useEffect(() => { allOrgIdsRef.current = allOrgIds; }, [allOrgIds]);
-
-  const loadActiveCustomer = useCallback(async (orgIds) => {
-    const ids = Array.isArray(orgIds) ? orgIds : [orgIds].filter(Boolean);
-    if (ids.length === 0) return;
-
+  /**
+   * Hämtar användarens organisationer + alla deras kedjor och bygger
+   * ihop nästlat format. Körs både vid inloggning och vid varje refresh
+   * så att nya/borttagna organisationer (t.ex. nyligen skapade kedjor)
+   * plockas upp utan att kräva re-login.
+   *
+   * Tidigare hämtades org_members bara vid auth state change vilket
+   * gjorde att nyskapade kedjor blev osynliga tills man laddade om sidan.
+   */
+  const loadActiveCustomer = useCallback(async () => {
     try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) {
+        setAllCustomers([]);
+        setActiveCustomer(null);
+        return;
+      }
+
+      const { data: memberships = [] } = await supabase
+        .from('org_members')
+        .select('organization_id')
+        .eq('user_id', currentUser.id);
+
+      const ids = memberships.map(m => m.organization_id);
+      setOrgId(ids[0] || null);
+
+      if (ids.length === 0) {
+        setAllCustomers([]);
+        setActiveCustomer(null);
+        return;
+      }
+
       const customers = await getAssembledCustomers(ids);
 
       if (customers.length === 0) {
-        const { getActiveCustomer } = await import('./utils/settings');
-        setActiveCustomer(getActiveCustomer());
+        setAllCustomers([]);
+        setActiveCustomer(null);
         return;
       }
 
@@ -220,20 +249,20 @@ function App() {
       setActiveCustomer(active);
     } catch (e) {
       console.error('[App] loadActiveCustomer:', e);
-      const { getActiveCustomer } = await import('./utils/settings');
-      setActiveCustomer(getActiveCustomer());
+      setAllCustomers([]);
+      setActiveCustomer(null);
     }
   }, []);
 
-  // Debounced refresh — slår ihop snabba anrop till ett Supabase-anrop
+  // Debounced refresh — slår ihop snabba anrop till ett laddningsanrop
   const handleRefresh = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      loadActiveCustomer(allOrgIdsRef.current);
+      loadActiveCustomer();
     }, 80);
   }, [loadActiveCustomer]);
 
-  // Direkt kedjeyte från SettingsPage — sätter activeChainId + debounced reload
+  // Direkt kedjebyte från SettingsPage — sätter activeChainId + debounced reload
   const handleChainChange = useCallback((chainId) => {
     setActiveChainId(chainId);
     handleRefresh();
@@ -245,31 +274,7 @@ function App() {
       setAuthLoading(false);
 
       if (currentUser && !IS_INVITE_FLOW) {
-        try {
-          const { supabase } = await import('./utils/supabaseClient');
-
-          const { data: memberships = [] } = await supabase
-            .from('org_members')
-            .select('organization_id')
-            .eq('user_id', currentUser.id);
-
-          const ids = memberships.map(m => m.organization_id);
-          const primaryOrgId = ids[0] || null;
-
-          setOrgId(primaryOrgId);
-          setAllOrgIds(ids);
-          allOrgIdsRef.current = ids;
-
-          if (ids.length > 0) {
-            await loadActiveCustomer(ids);
-          } else {
-            const { getActiveCustomer } = await import('./utils/settings');
-            setActiveCustomer(getActiveCustomer());
-          }
-        } catch {
-          const { getActiveCustomer } = await import('./utils/settings');
-          setActiveCustomer(getActiveCustomer());
-        }
+        await loadActiveCustomer();
       }
     });
 

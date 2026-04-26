@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { getFilteredResponses, getResponsesByDateRange } from '../utils/storage';
 import { supabase } from '../utils/supabaseClient';
 import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
@@ -385,41 +384,35 @@ export default function ReportPage({ activeCustomer }) {
 
   const touchpointIds = resolveTouchpointIds(filterMode);
 
-  // Använd supabaseResponses (från Supabase) om tillgänglig,
-  // annars fallback på localStorage direkt
-  const responses = supabaseResponses != null
-    ? (dateRange
-        ? supabaseResponses.filter(r => {
-            const ts = r.timestamp;
-            const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
-            const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
-            const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
-            return ts >= fromTs && ts <= toTs && tpOk;
-          })
-        : supabaseResponses.filter(r => {
-            const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
-            const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
-            return r.timestamp >= cutoff && tpOk;
-          }))
-    : (dateRange
-        ? getResponsesByDateRange(fromDate, toDate, customerId, touchpointIds)
-        : getFilteredResponses(filterDays, customerId, touchpointIds));
+  // Supabase är ensam källa. Innan första fetchen är klar är supabaseResponses
+  // `undefined` — då blir filtreringen tom (rapporten visar 0 svar i ~100ms).
+  const responseList = supabaseResponses || [];
 
-  // For Mätpunkter view: date-filtered only, not tp-filtered
-  const allResponses = supabaseResponses != null
-    ? (dateRange
-        ? supabaseResponses.filter(r => {
-            const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
-            const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
-            return r.timestamp >= fromTs && r.timestamp <= toTs;
-          })
-        : supabaseResponses.filter(r => {
-            const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
-            return r.timestamp >= cutoff;
-          }))
-    : (dateRange
-        ? getResponsesByDateRange(fromDate, toDate, customerId, null)
-        : getFilteredResponses(filterDays, customerId, null));
+  const responses = dateRange
+    ? responseList.filter(r => {
+        const ts = r.timestamp;
+        const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
+        const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
+        const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
+        return ts >= fromTs && ts <= toTs && tpOk;
+      })
+    : responseList.filter(r => {
+        const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
+        const tpOk = touchpointIds === null || touchpointIds.includes(r.touchpointId);
+        return r.timestamp >= cutoff && tpOk;
+      });
+
+  // För Mätpunkter-vyn: datumfiltrerat men inte tp-filtrerat
+  const allResponses = dateRange
+    ? responseList.filter(r => {
+        const fromTs = fromDate ? new Date(fromDate).getTime() : 0;
+        const toTs = toDate ? new Date(toDate).getTime() + 86399999 : Infinity;
+        return r.timestamp >= fromTs && r.timestamp <= toTs;
+      })
+    : responseList.filter(r => {
+        const cutoff = filterDays ? Date.now() - filterDays * 86400000 : 0;
+        return r.timestamp >= cutoff;
+      });
 
   // Filtrera bort dubbletter från NPS-beräkningar
   const npsResponses = responses.filter(r => !r.isDuplicate);
@@ -721,8 +714,8 @@ export default function ReportPage({ activeCustomer }) {
               </div>
 
               <div className="report-export">
-                <button className="export-btn" onClick={() => exportCsv(responses)}>Exportera CSV</button>
-                <button className="export-btn" onClick={() => exportExcel(responses)}>Exportera Excel</button>
+                <button className="export-btn" onClick={() => exportCsv(responses, activeCustomer)}>Exportera CSV</button>
+                <button className="export-btn" onClick={() => exportExcel(responses, activeCustomer)}>Exportera Excel</button>
               </div>
             </>
           )}

@@ -1,75 +1,32 @@
+// src/components/SettingsPage.js
+//
+// Sprint B: All CRUD går via chainOperations.js direkt mot Supabase.
+// Inga localStorage-skrivningar, inga sync-helpers, ingen backup-flik,
+// inga DEMO_CHAIN_ID-checks.
+//
+// Felhantering: alla mutation-handlers wrappas i try/catch och visar
+// `alert("Fel: " + e.message)` vid fel. Vid lyckad mutation kallas
+// refresh() som triggar App.js att ladda om kedjorna från Supabase.
+
 import React, { useState } from 'react';
 import {
-  getChains, getActiveChainId, setActiveChainId,
+  getActiveChainId, setActiveChainId, setActiveTouchpoint,
+  getTouchpointUrl, getDefaultConfig, getEffectiveConfig,
+  TYPE_LABELS, MODE_LABELS,
+} from '../utils/settings';
+import {
   addChain, updateChain, deleteChain, reorderChains,
   addDepartment, updateDepartment, deleteDepartment, reorderDepartments,
+  addTouchpoint, updateTouchpoint, deleteTouchpoint,
   applyConfigToType, migrateTouchpointsFromDept,
-  addTouchpoint, updateTouchpoint, deleteTouchpoint, setActiveTouchpoint,
-  getTouchpointUrl, getDefaultConfig, getEffectiveConfig,
-  DEMO_CHAIN_ID, TYPE_LABELS, MODE_LABELS,
-} from '../utils/settings';
-import { resetChainResponses, resetTouchpointResponses } from '../utils/storage';
-import { parseBackupFile, importSelectedBackup } from '../utils/backup';
-import MigrationTool from './MigrationTool';
+  resetChainResponses, resetTouchpointResponses,
+} from '../utils/chainOperations';
 import './SettingsPage.css';
-import { supabase } from '../utils/supabaseClient';
-
-// ── Supabase-synkhjälpare ─────────────────────────────────────
-async function syncChainToSupabase(chain) {
-  try {
-    await supabase.from('chains').upsert({
-      id: chain.id, organization_id: chain.id, name: chain.name,
-      custom_logo: chain.customLogo || null,
-      config: { physicalConfig: chain.physicalConfig, onlineConfig: chain.onlineConfig, otherConfig: chain.otherConfig, enpsConfig: chain.enpsConfig },
-      sort_order: chain.sortOrder || 0, is_active: true,
-    }, { onConflict: 'id' });
-  } catch (e) { console.error('[Settings] syncChain:', e?.message); }
-}
-async function syncDeptToSupabase(dept, chainId) {
-  try {
-    await supabase.from('departments').upsert({ id: dept.id, chain_id: chainId, name: dept.name, sort_order: dept.order || 0 }, { onConflict: 'id' });
-  } catch (e) { console.error('[Settings] syncDept:', e?.message); }
-}
-async function syncTouchpointToSupabase(tp, chainId) {
-  try {
-    const payload = {
-      id: tp.id, chain_id: chainId, department_id: tp.departmentId || null, name: tp.name,
-      sort_order: tp.order || 0, is_active: true, config_override: tp.configOverride || null,
-      type: tp.type || 'physical', mode: tp.mode || 'app',
-    };
-    if (tp.access_token) payload.access_token = tp.access_token;
-    await supabase.from('touchpoints').upsert(payload, { onConflict: 'id' });
-  } catch (e) { console.error('[Settings] syncTp:', e?.message); }
-}
-async function softDeleteChainInSupabase(id) {
-  try { await supabase.from('chains').update({ deleted_at: new Date().toISOString() }).eq('id', id); }
-  catch (e) { console.error('[Settings] deleteChain:', e?.message); }
-}
-async function softDeleteDeptInSupabase(id) {
-  try { await supabase.from('departments').update({ deleted_at: new Date().toISOString() }).eq('id', id); }
-  catch (e) { console.error('[Settings] deleteDept:', e?.message); }
-}
-async function softDeleteTpInSupabase(id) {
-  try { await supabase.from('touchpoints').update({ deleted_at: new Date().toISOString() }).eq('id', id); }
-  catch (e) { console.error('[Settings] deleteTp:', e?.message); }
-}
 
 
-function exportSelectedBackup(selectedIds, chains) {
-  const allResponses = JSON.parse(localStorage.getItem('npsResponses') || '[]');
-  const data = {
-    npsCustomers: chains.filter((c) => selectedIds.includes(c.id)),
-    npsResponses: allResponses.filter((r) => selectedIds.includes(r.customerId)),
-    npsActiveCustomerId: localStorage.getItem('npsActiveCustomerId'),
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `feedback-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+// ════════════════════════════════════════════════════════════
+// HJÄLPFUNKTIONER
+// ════════════════════════════════════════════════════════════
 
 function generateDeptCode(departments) {
   const existing = new Set((departments || []).map((d) => d.uniqueCode).filter(Boolean));
@@ -89,8 +46,12 @@ const MENU_ITEMS = [
   { key: 'chains', label: 'Kedjor' },
   { key: 'departments', label: 'Avdelningar' },
   { key: 'config', label: 'Konfiguration' },
-  { key: 'backup', label: 'Säkerhetskopiering' },
 ];
+
+
+// ════════════════════════════════════════════════════════════
+// DIALOG-KOMPONENTER
+// ════════════════════════════════════════════════════════════
 
 function ConfirmDialog({ message, detail, onConfirm, onCancel }) {
   return (
@@ -134,6 +95,11 @@ function ResetDialog({ label, onConfirm, onCancel }) {
     </div>
   );
 }
+
+
+// ════════════════════════════════════════════════════════════
+// CONFIG-FORMULÄR (per typ)
+// ════════════════════════════════════════════════════════════
 
 // showCountdown: true when mode === 'app'
 function ConfigForm({ config, onChange, type, showCountdown = false }) {
@@ -227,6 +193,11 @@ function ConfigForm({ config, onChange, type, showCountdown = false }) {
   );
 }
 
+
+// ════════════════════════════════════════════════════════════
+// PREDEFINED ANSWERS (drag-and-drop-lista i ConfigForm)
+// ════════════════════════════════════════════════════════════
+
 function PredefinedAnswers({ answers, onChange }) {
   const [newAnswer, setNewAnswer] = useState('');
   const [editIdx, setEditIdx] = useState(null);
@@ -278,55 +249,59 @@ function PredefinedAnswers({ answers, onChange }) {
               style={{
                 width: '1.6rem', height: '1.6rem', borderRadius: '50%', border: '1.5px solid',
                 fontWeight: 700, fontSize: '1rem', lineHeight: 1, cursor: 'pointer', flexShrink: 0,
-                borderColor: answer.polarity === 'positive' ? '#27ae60' : '#ccc',
                 background: answer.polarity === 'positive' ? '#27ae60' : 'transparent',
-                color: answer.polarity === 'positive' ? '#fff' : '#888',
+                color: answer.polarity === 'positive' ? '#fff' : '#27ae60',
+                borderColor: '#27ae60',
               }}>+</button>
             <button type="button" title="Negativt alternativ" onClick={() => togglePolarity(i, 'negative')}
               style={{
                 width: '1.6rem', height: '1.6rem', borderRadius: '50%', border: '1.5px solid',
-                fontWeight: 700, fontSize: '1.1rem', lineHeight: 1, cursor: 'pointer', flexShrink: 0,
-                borderColor: answer.polarity === 'negative' ? '#e74c3c' : '#ccc',
+                fontWeight: 700, fontSize: '1rem', lineHeight: 1, cursor: 'pointer', flexShrink: 0,
                 background: answer.polarity === 'negative' ? '#e74c3c' : 'transparent',
-                color: answer.polarity === 'negative' ? '#fff' : '#888',
+                color: answer.polarity === 'negative' ? '#fff' : '#e74c3c',
+                borderColor: '#e74c3c',
               }}>−</button>
-            <button className="predefined-remove"
-              onClick={() => onChange(normalized.filter((_, idx) => idx !== i))}>&times;</button>
+            <button type="button" className="predefined-remove" title="Ta bort"
+              onClick={() => { const u = normalized.filter((_, j) => j !== i); onChange(u); }}>×</button>
           </li>
         ))}
       </ul>
       {normalized.length < 6 && (
-        <form className="predefined-add-form" onSubmit={(e) => {
-          e.preventDefault(); if (!newAnswer.trim()) return;
-          onChange([...normalized, { text: newAnswer.trim(), polarity: null }]); setNewAnswer('');
+        <form className="predefined-add" onSubmit={(e) => {
+          e.preventDefault(); const t = newAnswer.trim(); if (!t) return;
+          onChange([...normalized, { text: t, polarity: null }]); setNewAnswer('');
         }}>
-          <input type="text" placeholder="Nytt svarsalternativ..." value={newAnswer}
-            onChange={(e) => setNewAnswer(e.target.value)} className="settings-input" />
-          <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
+          <input className="settings-input" placeholder="Lägg till svar..." value={newAnswer}
+            onChange={(e) => setNewAnswer(e.target.value)} />
+          <button type="submit" className="settings-btn settings-btn--ghost settings-btn--sm">Lägg till</button>
         </form>
       )}
     </div>
   );
 }
 
+
+// ════════════════════════════════════════════════════════════
+// LOGO CROPPER MODAL
+// ════════════════════════════════════════════════════════════
+
 function LogoCropperModal({ imageSrc, onSave, onCancel }) {
+  const containerRef = React.useRef(null);
   const imgRef = React.useRef(null);
   const canvasRef = React.useRef(null);
-  const containerRef = React.useRef(null);
-
-  const [imgLoaded, setImgLoaded] = React.useState(false);
   const [imgRect, setImgRect] = React.useState({ x: 0, y: 0, w: 0, h: 0 });
-  const [crop, setCrop] = React.useState({ x: 20, y: 20, w: 200, h: 100 });
+  const [crop, setCrop] = React.useState({ x: 0, y: 0, w: 0, h: 0 });
+  const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [outputScale, setOutputScale] = React.useState(1);
   const [dragging, setDragging] = React.useState(null);
   const [dragStart, setDragStart] = React.useState(null);
-  const [outputScale, setOutputScale] = React.useState(1);
 
   function onImgLoad() {
     const img = imgRef.current;
     const cont = containerRef.current;
     if (!img || !cont) return;
-    const cr = cont.getBoundingClientRect();
     const ir = img.getBoundingClientRect();
+    const cr = cont.getBoundingClientRect();
     const rx = ir.left - cr.left;
     const ry = ir.top - cr.top;
     setImgRect({ x: rx, y: ry, w: ir.width, h: ir.height });
@@ -448,6 +423,11 @@ function LogoCropperModal({ imageSrc, onSave, onCancel }) {
   );
 }
 
+
+// ════════════════════════════════════════════════════════════
+// TOUCHPOINT LINKS (visas i TouchpointModal när mode !== 'app')
+// ════════════════════════════════════════════════════════════
+
 function TouchpointLinks({ tp }) {
   const [copiedKey, setCopiedKey] = useState(null);
   const url = getTouchpointUrl(tp.id);
@@ -482,6 +462,11 @@ function TouchpointLinks({ tp }) {
     </div>
   );
 }
+
+
+// ════════════════════════════════════════════════════════════
+// TOUCHPOINT MODAL
+// ════════════════════════════════════════════════════════════
 
 function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
   const [mode, setMode] = useState(tp.mode || 'app');
@@ -558,7 +543,7 @@ function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
                 type="button"
                 className="settings-btn settings-btn--primary"
                 onClick={async () => {
-                  // Generera ett nytt UUID-token
+                  // Generera ett nytt UUID-token (32-char hex utan bindestreck)
                   const newToken = crypto.randomUUID().replace(/-/g, '');
                   onUpdate(tp.id, { access_token: newToken });
                 }}
@@ -576,6 +561,11 @@ function TouchpointModal({ tp, dept, chain, onClose, onUpdate, onReset }) {
     </div>
   );
 }
+
+
+// ════════════════════════════════════════════════════════════
+// HUVUDKOMPONENT
+// ════════════════════════════════════════════════════════════
 
 export default function SettingsPage({ onSettingsChange, onChainSelect, initialChains }) {
   const [section, setSection] = useState('chains');
@@ -607,101 +597,188 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
   const [configTab, setConfigTab] = useState('physical');
   const [confirmApplyToAll, setConfirmApplyToAll] = useState(null);
 
-  const [selectedExportIds, setSelectedExportIds] = useState(() => getChains().map((c) => c.id));
-  const [parsedBackup, setParsedBackup] = useState(null);
-  const [selectedImportIds, setSelectedImportIds] = useState([]);
-  const [importStatus, setImportStatus] = useState(null);
-
   const [cropperSrc, setCropperSrc] = React.useState(null);
 
-  // Punkt 6: visa migration bara om inte redan gjord
-  const migrationDone = !!localStorage.getItem('migrated_at');
-
-  // Initialisera kedjor från prop (redan laddade av App.js) vid mount
+  // Initialisera kedjor från App.js-prop. App.js är ensam ansvarig för
+  // att ladda från Supabase via getAssembledCustomers — vi tar bara emot.
   React.useEffect(() => {
     if (initialChains && initialChains.length > 0) {
       setChains(initialChains);
-      setSelectedExportIds(initialChains.map(c => c.id));
       const savedId = getActiveChainId();
       const validId = initialChains.find(c => c.id === savedId) ? savedId : (initialChains[0]?.id || '');
       setActiveId(validId);
-      setLoadingChains(false);
     } else {
-      // Fallback: ladda från Supabase om inga kedjor skickades ner
-      setChains(getChains());
-      setLoadingChains(false);
+      setChains([]);
     }
+    setLoadingChains(false);
   }, [initialChains]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Be App.js om en ny laddning från Supabase. Mutation-handlers nedan
+  // skriver till Supabase och kallar refresh() — App.js plockar upp
+  // ändringen och pushar tillbaka via initialChains.
   function refresh() {
-    // Vid refresh — trigga App.js att ladda om, vilket skickar nya initialChains hit
     onSettingsChange();
   }
 
   const active = chains.find((c) => c.id === activeId) || null;
   const departments = (active?.departments || []).slice().sort((a, b) => a.order - b.order);
   const touchpoints = active?.touchpoints || [];
-  const allChainIds = chains.map((c) => c.id);
 
-  function handleAddChain(e) {
+
+  // ── Chains ──────────────────────────────────────────────
+
+  async function handleAddChain(e) {
     e.preventDefault();
     if (!newChainName.trim()) return;
-    const newChain = addChain(newChainName.trim()); setNewChainName('');
-    (async()=>{ await syncChainToSupabase(newChain); const{data:{user}}=await supabase.auth.getUser(); if(user){ await supabase.from('organizations').upsert({id:newChain.id,name:newChain.name},{onConflict:'id'}); await supabase.from('org_members').upsert({organization_id:newChain.id,user_id:user.id,role:'owner'},{onConflict:'organization_id,user_id'}); } })(); refresh();
+    try {
+      const newChain = await addChain(newChainName.trim());
+      setNewChainName('');
+      // Hoppa direkt till den nya kedjan — matchar originalbeteendet
+      // där settings.addChain satte activeChainId automatiskt.
+      setActiveChainId(newChain.id);
+      if (onChainSelect) onChainSelect(newChain.id);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
-  function handleChainDrop(targetId) {
-    if (!dragId || targetId === DEMO_CHAIN_ID || dragId === targetId) { setDragId(null); setDragOverId(null); return; }
+  async function handleChainDrop(targetId) {
+    if (!dragId || dragId === targetId) {
+      setDragId(null); setDragOverId(null); return;
+    }
     const ids = chains.map((c) => c.id);
     const fi = ids.indexOf(dragId); const ti = ids.indexOf(targetId);
     ids.splice(fi, 1); ids.splice(ti, 0, dragId);
-    reorderChains(ids); setDragId(null); setDragOverId(null); refresh();
+    setDragId(null); setDragOverId(null);
+    try {
+      await reorderChains(ids);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
-  function handleAddDept(e) {
+  async function handleChainLogoSet(dataUrl) {
+    if (!active) return;
+    try {
+      await updateChain(active.id, { customLogo: dataUrl });
+      setCropperSrc(null);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
+  }
+
+  async function handleChainLogoRemove() {
+    if (!active) return;
+    try {
+      await updateChain(active.id, { customLogo: null });
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
+  }
+
+
+  // ── Departments ────────────────────────────────────────
+
+  async function handleAddDept(e) {
     e.preventDefault();
     if (!newDeptName.trim() || !active) return;
     const code = newDeptCode.trim() || generateDeptCode(active.departments);
-    const dept = addDepartment(active.id, newDeptName.trim(), code);
-    setNewDeptName(''); setNewDeptCode('');
-    setExpandedDeptId(dept?.id || null);
-    if (dept) syncDeptToSupabase(dept, active.id);
-    refresh();
+    try {
+      const dept = await addDepartment(active.id, newDeptName.trim(), code);
+      setNewDeptName(''); setNewDeptCode('');
+      setExpandedDeptId(dept?.id || null);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
-  function handleDeptDrop(targetId) {
-    if (!deptDragId || deptDragId === targetId || !active) { setDeptDragId(null); setDeptDragOverId(null); return; }
+  async function handleDeptDrop(targetId) {
+    if (!deptDragId || deptDragId === targetId || !active) {
+      setDeptDragId(null); setDeptDragOverId(null); return;
+    }
     const ids = departments.map((d) => d.id);
     const fi = ids.indexOf(deptDragId); const ti = ids.indexOf(targetId);
     ids.splice(fi, 1); ids.splice(ti, 0, deptDragId);
-    reorderDepartments(active.id, ids); setDeptDragId(null); setDeptDragOverId(null); refresh();
+    setDeptDragId(null); setDeptDragOverId(null);
+    try {
+      await reorderDepartments(ids);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
+  }
+
+  async function handleDeptNameSave(deptId, newName) {
+    const trimmed = (newName || '').trim();
+    if (!trimmed) { setEditingDeptId(null); return; }
+    try {
+      await updateDepartment(deptId, { name: trimmed });
+      setEditingDeptId(null);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
+  }
+
+  async function handleDeptCodeSave(deptId, newCode) {
+    try {
+      await updateDepartment(deptId, { uniqueCode: (newCode || '').trim() });
+      setEditingCodeId(null);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
   function handleMigrateClick(dept, deptTps) {
-    setConfirmMigrate({ deptId: dept.id, deptName: dept.name, tpNames: deptTps.map((t) => t.name), otherCount: departments.length - 1 });
+    setConfirmMigrate({
+      deptId: dept.id, deptName: dept.name,
+      tpNames: deptTps.map((t) => t.name),
+      otherCount: departments.length - 1,
+    });
   }
 
-  function executeMigrate() {
+  async function executeMigrate() {
     if (!confirmMigrate || !active) return;
-    const result = migrateTouchpointsFromDept(active.id, confirmMigrate.deptId);
-    setConfirmMigrate(null);
-    setMigrateResult(result);
-    setTimeout(() => setMigrateResult(null), 4000);
-    refresh();
+    try {
+      const result = await migrateTouchpointsFromDept(active.id, confirmMigrate.deptId);
+      setConfirmMigrate(null);
+      setMigrateResult(result);
+      setTimeout(() => setMigrateResult(null), 4000);
+      refresh();
+    } catch (err) {
+      setConfirmMigrate(null);
+      alert('Fel: ' + err.message);
+    }
   }
 
-  function handleAddTp(e, deptId) {
+
+  // ── Touchpoints ────────────────────────────────────────
+
+  async function handleAddTp(e, deptId) {
     e.preventDefault();
     const state = newTpByDept[deptId] || {};
     const name = (state.name || '').trim();
     const type = state.type || 'physical';
     if (!name || !active) return;
-    const newTp = addTouchpoint(active.id, name, deptId, type);
-    if (newTp) syncTouchpointToSupabase(newTp, active.id);
-    setNewTpByDept((prev) => ({ ...prev, [deptId]: { name: '', type: prev[deptId]?.type || 'physical' } }));
-    refresh();
+    try {
+      await addTouchpoint(active.id, name, deptId, type);
+      setNewTpByDept((prev) => ({
+        ...prev,
+        [deptId]: { name: '', type: prev[deptId]?.type || 'physical' },
+      }));
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
+  // setActiveTouchpoint är UI-state (per webbläsare) och stannar i settings.js
   function handleSetActiveTp(tpId) {
     if (!active) return;
     setActiveTouchpoint(active.id, active.activeTouchpointId === tpId ? null : tpId);
@@ -709,36 +786,63 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
   }
 
   async function handleTpUpdate(tpId, updates) {
-    if (active) {
-      updateTouchpoint(active.id, tpId, updates);
-      const uc = getChains().find(c => c.id === active.id);
-      const ut = (uc?.touchpoints || []).find(t => t.id === tpId);
-      if (ut) await syncTouchpointToSupabase(ut, active.id);
+    if (!active) return;
+    try {
+      await updateTouchpoint(tpId, updates);
       refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
     }
   }
 
-  function executeDelete() {
+
+  // ── Delete ──────────────────────────────────────────────
+
+  async function executeDelete() {
     if (!confirmDelete) return;
     const { type, id } = confirmDelete;
-    if (type === 'chain') { deleteChain(id); softDeleteChainInSupabase(id); }
-    else if (type === 'dept' && active) { deleteDepartment(active.id, id); softDeleteDeptInSupabase(id); }
-    else if (type === 'tp' && active) { deleteTouchpoint(active.id, id); softDeleteTpInSupabase(id); }
-    setConfirmDelete(null); refresh();
+    setConfirmDelete(null);
+    try {
+      if (type === 'chain')      await deleteChain(id);
+      else if (type === 'dept')  await deleteDepartment(id);
+      else if (type === 'tp')    await deleteTouchpoint(id);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
-  function executeReset() {
+
+  // ── Reset (nollställ svar) ─────────────────────────────
+
+  async function executeReset() {
     if (!confirmReset) return;
-    if (confirmReset.type === 'chain') resetChainResponses(confirmReset.id);
-    else resetTouchpointResponses(confirmReset.id);
-    setConfirmReset(null); refresh();
+    const target = confirmReset;
+    setConfirmReset(null);
+    try {
+      if (target.type === 'chain') await resetChainResponses(target.id);
+      else                          await resetTouchpointResponses(target.id);
+      refresh();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
+
+
+  // ── Konfiguration (kedjenivå) ──────────────────────────
+  //
+  // Uppdaterar kedjans config OCH propagerar till alla mätpunkter med
+  // matching type via applyConfigToType. Detta är samma beteende som
+  // föregående version — användaren har separat "Tillämpa på alla"-knapp
+  // som gör samma sak men med explicit bekräftelse.
 
   async function handleConfigChange(type, newConfig) {
     if (!active) return;
-    const key = type === 'physical' ? 'physicalConfig' : type === 'online' ? 'onlineConfig' : type === 'enps' ? 'enpsConfig' : 'otherConfig';
+    const key = type === 'physical' ? 'physicalConfig'
+              : type === 'online'   ? 'onlineConfig'
+              : type === 'enps'     ? 'enpsConfig'
+              :                       'otherConfig';
 
-    // Bygg den uppdaterade config-JSONB direkt från active (som redan kommit från Supabase)
     const updatedConfig = {
       physicalConfig: active.physicalConfig,
       onlineConfig:   active.onlineConfig,
@@ -747,59 +851,32 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
       [key]: newConfig,
     };
 
-    // Spara kedja-config direkt till Supabase (undviker localStorage-beroende)
-    const { error: chainErr } = await supabase
-      .from('chains')
-      .update({ config: updatedConfig })
-      .eq('id', active.id);
-    if (chainErr) console.error('[Settings] handleConfigChange chain:', chainErr.message);
-
-    // Hämta touchpoints från Supabase och propagera config_override
-    const { data: sbTouchpoints = [] } = await supabase
-      .from('touchpoints')
-      .select('id, type')
-      .eq('chain_id', active.id)
-      .is('deleted_at', null);
-
-    const affected = sbTouchpoints.filter(t => (t.type || 'physical') === type);
-
-    if (affected.length > 0) {
-      await Promise.all(affected.map(tp =>
-        supabase.from('touchpoints')
-          .update({ config_override: newConfig })
-          .eq('id', tp.id)
-      ));
-    }
-
-    // Uppdatera även localStorage för konsistens (om data finns där)
-    updateChain(active.id, { [key]: newConfig });
-
-    onSettingsChange();
-  }
-
-  function handleApplyToAll(type) {
-    if (!active) return;
-    applyConfigToType(active.id, type); const uc=getChains().find(c=>c.id===active.id); if(uc)(uc.touchpoints||[]).filter(t=>t.type===type).forEach(t=>syncTouchpointToSupabase(t,active.id));
-    setChains(getChains()); onSettingsChange();
-  }
-
-  async function handleFileSelected(e) {
-    const file = e.target.files[0]; if (!file) return;
     try {
-      const parsed = await parseBackupFile(file);
-      setParsedBackup(parsed); setSelectedImportIds(parsed.customers.map((c) => c.id)); setImportStatus(null);
-    } catch { setImportStatus('error'); setParsedBackup(null); }
-    e.target.value = '';
+      await updateChain(active.id, { config: updatedConfig });
+      await applyConfigToType(active.id, type, newConfig);
+      onSettingsChange();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
 
-  function handleConfirmImport() {
-    if (!parsedBackup || selectedImportIds.length === 0) return;
-    const ok = importSelectedBackup(parsedBackup, selectedImportIds);
-    setImportStatus(ok ? 'ok' : 'error');
-    setParsedBackup(null); setSelectedImportIds([]);
-    if (ok) refresh();
-    setTimeout(() => setImportStatus(null), 3000);
+  async function handleApplyToAll(type) {
+    if (!active) return;
+    const key = type === 'physical' ? 'physicalConfig'
+              : type === 'online'   ? 'onlineConfig'
+              : type === 'enps'     ? 'enpsConfig'
+              :                       'otherConfig';
+    const config = active[key] || getDefaultConfig(type);
+    try {
+      await applyConfigToType(active.id, type, config);
+      onSettingsChange();
+    } catch (err) {
+      alert('Fel: ' + err.message);
+    }
   }
+
+
+  // ── Render ─────────────────────────────────────────────
 
   if (loadingChains) {
     return <div style={{ padding: '2rem', color: 'var(--color-text-light)' }}>Laddar inställningar...</div>;
@@ -844,32 +921,32 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
         {section === 'chains' && (
           <div className="settings-card">
             <h2>Kedjor</h2>
-            {/* Punkt 2: Lägg till-formulär ÖVERST precis som originalet */}
             <form className="settings-add-form" onSubmit={handleAddChain}>
               <input type="text" placeholder="Ny kedja..." value={newChainName}
                 onChange={(e) => setNewChainName(e.target.value)} className="settings-input" />
               <button type="submit" className="settings-btn settings-btn--primary">Lägg till</button>
             </form>
-            {/* Punkt 3: Aktiv-badge återinförd */}
             <ul className="customer-list">
               {chains.map((c) => (
                 <li key={c.id}
                   className={'customer-item' + (c.id === activeId ? ' customer-item--active' : '') + (dragId === c.id ? ' customer-item--dragging' : '') + (dragOverId === c.id ? ' customer-item--drag-over' : '')}
-                  draggable={c.id !== DEMO_CHAIN_ID}
-                  onDragStart={() => c.id !== DEMO_CHAIN_ID && setDragId(c.id)}
-                  onDragOver={(e) => { e.preventDefault(); if (c.id !== DEMO_CHAIN_ID && c.id !== dragId) setDragOverId(c.id); }}
+                  draggable
+                  onDragStart={() => setDragId(c.id)}
+                  onDragOver={(e) => { e.preventDefault(); if (c.id !== dragId) setDragOverId(c.id); }}
                   onDrop={() => handleChainDrop(c.id)}
                   onDragEnd={() => { setDragId(null); setDragOverId(null); }}
                 >
-                  {c.id !== DEMO_CHAIN_ID && <span className="customer-drag-handle">&#x2630;</span>}
-                  <button className="customer-select" onClick={() => { setActiveChainId(c.id); refresh(); }}>
+                  <span className="customer-drag-handle">&#x2630;</span>
+                  <button className="customer-select" onClick={() => {
+                    setActiveChainId(c.id);
+                    if (onChainSelect) onChainSelect(c.id);
+                    refresh();
+                  }}>
                     <span className="customer-name">{c.name}</span>
                     {c.id === activeId && <span className="customer-badge">Aktiv</span>}
                   </button>
                   <button className="reset-btn" title="Nollställ data" onClick={() => setConfirmReset({ type: 'chain', id: c.id, label: c.name })}>↺</button>
-                  {c.id !== DEMO_CHAIN_ID && (
-                    <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'chain', id: c.id, label: c.name })}>&times;</button>
-                  )}
+                  <button className="customer-delete" onClick={() => setConfirmDelete({ type: 'chain', id: c.id, label: c.name })}>&times;</button>
                 </li>
               ))}
             </ul>
@@ -889,7 +966,7 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                           reader.readAsDataURL(file);
                         }} />
                       </label>
-                      <button className="settings-btn settings-btn--danger" onClick={() => { updateChain(active.id, { customLogo: null }); const uc=getChains().find(c=>c.id===active.id); if(uc) syncChainToSupabase(uc); refresh(); }}>Ta bort logo</button>
+                      <button className="settings-btn settings-btn--danger" onClick={handleChainLogoRemove}>Ta bort logo</button>
                     </div>
                   </div>
                 ) : (
@@ -906,7 +983,7 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                 {cropperSrc && (
                   <LogoCropperModal
                     imageSrc={cropperSrc}
-                    onSave={(dataUrl) => { updateChain(active.id, { customLogo: dataUrl }); const uc=getChains().find(c=>c.id===active.id); if(uc) syncChainToSupabase(uc); setCropperSrc(null); refresh(); }}
+                    onSave={handleChainLogoSet}
                     onCancel={() => setCropperSrc(null)}
                   />
                 )}
@@ -915,7 +992,6 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
           </div>
         )}
 
-        {/* Punkt 4: Avdelningar — originalt accordion-utseende */}
         {section === 'departments' && (
           <div className="settings-card">
             <h2>Avdelningar{active ? ` — ${active.name}` : ''}</h2>
@@ -952,17 +1028,19 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                             <span className="customer-drag-handle" onClick={(e) => e.stopPropagation()}>&#x2630;</span>
                             {editingDeptId === d.id ? (
                               <form className="predefined-edit-form" style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}
-                                onSubmit={(e) => { e.preventDefault(); if (!editingDeptText.trim()) return; updateDepartment(active.id, d.id, { name: editingDeptText.trim() }); setEditingDeptId(null); refresh(); }}>
-                                <input className="settings-input" value={editingDeptText} onChange={(e) => setEditingDeptText(e.target.value)} autoFocus onBlur={() => setEditingDeptId(null)} onKeyDown={(e) => { if (e.key === 'Escape') setEditingDeptId(null); }} />
+                                onSubmit={(e) => { e.preventDefault(); handleDeptNameSave(d.id, editingDeptText); }}>
+                                <input className="settings-input" value={editingDeptText} onChange={(e) => setEditingDeptText(e.target.value)} autoFocus
+                                  onBlur={() => setEditingDeptId(null)}
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setEditingDeptId(null); }} />
                               </form>
                             ) : (
                               <span className="dept-accordion-name" onDoubleClick={(e) => { e.stopPropagation(); setEditingDeptId(d.id); setEditingDeptText(d.name); }} title="Dubbelklicka för att redigera namn">{d.name}</span>
                             )}
                             {editingCodeId === d.id ? (
                               <form style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}
-                                onSubmit={(e) => { e.preventDefault(); updateDepartment(active.id, d.id, { uniqueCode: editingCodeText.trim() }); setEditingCodeId(null); refresh(); }}>
+                                onSubmit={(e) => { e.preventDefault(); handleDeptCodeSave(d.id, editingCodeText); }}>
                                 <input className="settings-input settings-input--code" value={editingCodeText} onChange={(e) => setEditingCodeText(e.target.value)} autoFocus
-                                  onBlur={() => { updateDepartment(active.id, d.id, { uniqueCode: editingCodeText.trim() }); setEditingCodeId(null); refresh(); }}
+                                  onBlur={() => handleDeptCodeSave(d.id, editingCodeText)}
                                   onKeyDown={(e) => { if (e.key === 'Escape') setEditingCodeId(null); }} />
                               </form>
                             ) : (
@@ -1052,7 +1130,6 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
           </div>
         )}
 
-        {/* Punkt 5: Konfiguration — originalt utseende */}
         {section === 'config' && (
           <div className="settings-card">
             <h2>Konfiguration{active ? ` — ${active.name}` : ''}</h2>
@@ -1090,77 +1167,6 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
           </div>
         )}
 
-        {section === 'backup' && (
-          <div className="settings-card">
-            <h2>Säkerhetskopiering</h2>
-
-            {/* Punkt 6: Visa migration bara om inte redan klar */}
-            {!migrationDone && (
-              <div className="setting-row setting-row--col" style={{ marginBottom: '1.5rem' }}>
-                <div className="setting-info">
-                  <h3>Migrera till molnet</h3>
-                  <p>Flytta data från lokal lagring till Supabase-databasen.</p>
-                </div>
-                <MigrationTool />
-              </div>
-            )}
-
-            <div className="setting-row setting-row--col">
-              <div className="setting-info"><h3>Exportera backup</h3><p>Välj vilka kedjor som ska ingå (JSON).</p></div>
-              <div style={{ width: '100%', marginTop: '0.5rem' }}>
-                <div className="backup-checkbox-list">
-                  <label className="backup-checkbox-item">
-                    <input type="checkbox" checked={selectedExportIds.length === allChainIds.length}
-                      onChange={() => setSelectedExportIds((p) => p.length === allChainIds.length ? [] : allChainIds)} />
-                    <strong>Alla kedjor</strong>
-                  </label>
-                  {chains.map((c) => (
-                    <label key={c.id} className="backup-checkbox-item backup-checkbox-item--indent">
-                      <input type="checkbox" checked={selectedExportIds.includes(c.id)}
-                        onChange={() => setSelectedExportIds((p) => p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id])} />
-                      {c.name}
-                    </label>
-                  ))}
-                </div>
-                <button className="settings-btn settings-btn--primary" disabled={selectedExportIds.length === 0}
-                  onClick={() => exportSelectedBackup(selectedExportIds, chains)}>Exportera</button>
-              </div>
-            </div>
-            <div className="setting-row setting-row--col">
-              <div className="setting-info"><h3>Importera backup</h3><p>Välj fil och kedjor att importera. Data slås ihop.</p></div>
-              {!parsedBackup ? (
-                <label className="settings-upload" style={{ marginTop: '0.5rem' }}>
-                  <span className="settings-btn settings-btn--primary">Välj fil...</span>
-                  <input type="file" accept=".json" hidden onChange={handleFileSelected} />
-                </label>
-              ) : (
-                <div style={{ width: '100%', marginTop: '0.5rem' }}>
-                  <p style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-light)' }}>Välj kedjor att importera:</p>
-                  <div className="backup-checkbox-list">
-                    <label className="backup-checkbox-item">
-                      <input type="checkbox" checked={selectedImportIds.length === parsedBackup.customers.length}
-                        onChange={() => { const all = parsedBackup.customers.map((c) => c.id); setSelectedImportIds((p) => p.length === all.length ? [] : all); }} />
-                      <strong>Alla kedjor</strong>
-                    </label>
-                    {parsedBackup.customers.map((c) => (
-                      <label key={c.id} className="backup-checkbox-item backup-checkbox-item--indent">
-                        <input type="checkbox" checked={selectedImportIds.includes(c.id)}
-                          onChange={() => setSelectedImportIds((p) => p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id])} />
-                        {c.name}
-                      </label>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button className="settings-btn settings-btn--primary" onClick={handleConfirmImport} disabled={selectedImportIds.length === 0}>Importera</button>
-                    <button className="settings-btn settings-btn--ghost" onClick={() => { setParsedBackup(null); setSelectedImportIds([]); }}>Avbryt</button>
-                  </div>
-                </div>
-              )}
-              {importStatus === 'ok' && <p style={{ color: 'var(--color-promoter)', margin: '0.5rem 0 0' }}>✓ Data importerad!</p>}
-              {importStatus === 'error' && <p style={{ color: 'var(--color-detractor)', margin: '0.5rem 0 0' }}>✗ Ogiltig fil.</p>}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

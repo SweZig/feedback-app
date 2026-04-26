@@ -1,5 +1,5 @@
 import { categorize } from './npsCalculations';
-import { getChains, TYPE_LABELS, MODE_LABELS } from './settings';
+import { TYPE_LABELS, MODE_LABELS } from './settings';
 
 const CATEGORY_LABELS = {
   detractor: 'Kritiker',
@@ -86,16 +86,21 @@ function buildXml(rows, sheetName) {
 </Workbook>`;
 }
 
-export function exportCsv(responses) {
-  const rows = buildRows(responses, getChains());
+// Sprint B: chain skickas in som parameter (tidigare lästes alla kedjor
+// via getChains() från localStorage). Den enda kedjan som behövs är den
+// aktiva — alla responses i exporten tillhör samma kedja.
+export function exportCsv(responses, chain) {
+  if (!chain) return;
+  const rows = buildRows(responses, [chain]);
   const csv = toCsv(rows);
   if (!csv) return;
   download(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }),
     `nps-export-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
-export function exportExcel(responses) {
-  const rows = buildRows(responses, getChains());
+export function exportExcel(responses, chain) {
+  if (!chain) return;
+  const rows = buildRows(responses, [chain]);
   const xml = buildXml(rows, 'NPS');
   if (!xml) return;
   download(new Blob([xml], { type: 'application/vnd.ms-excel' }),
