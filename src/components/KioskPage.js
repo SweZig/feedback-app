@@ -205,6 +205,21 @@ export default function KioskPage({ accessToken }) {
   const timerRef       = useRef(null);
   const step2TimerRef  = useRef(null);
 
+  // ── Diagnostik (TILLFÄLLIGT — ta bort efter felsökning) ───────────────
+  // Aktiveras genom att lägga till &debug=1 i kiosk-URL:en. Visar en liten
+  // dämpad logg-overlay längst ner på skärmen där kameraanalysens resultat
+  // skrivs ut. Bara aktiv på den specifika plattan som har debug=1 i URL.
+  const debugMode = typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('debug') === '1';
+  const [debugLog, setDebugLog] = useState([]);
+  function dbg(msg) {
+    if (!debugMode) return;
+    const ts = new Date().toLocaleTimeString('sv-SE');
+    setDebugLog(prev => [...prev.slice(-9), `${ts} ${msg}`]);
+    // Ekot till console gör att om vi får igång DevTools senare ser vi historiken
+    console.log('[dbg]', msg);
+  }
+
   // ── Dedup-guards (Sprint A.7) ────────────────────────────────────────────
   // savingRef:      blockerar dubbla saveKioskResponse()-anrop. Sätts inuti
   //                 submit() innan await, nollställs vid fel eller via
@@ -230,6 +245,45 @@ export default function KioskPage({ accessToken }) {
 
   // ── Kamera + ansiktsanalys ──
   const { videoRef, captureAnalysis } = useFaceCamera();
+
+  // Diagnostik (tillfälligt): logga video-element-state efter mount och var 5:e sek
+  useEffect(() => {
+    if (!debugMode) return;
+    const checkVideo = () => {
+      const v = videoRef?.current;
+      if (!v) {
+        dbg('VIDEO: ref saknar element');
+        return;
+      }
+      dbg(`VIDEO: rs=${v.readyState} w=${v.videoWidth} h=${v.videoHeight} src=${!!v.srcObject} paused=${v.paused}`);
+    };
+    setTimeout(checkVideo, 1000);
+    setTimeout(checkVideo, 3000);
+    const id = setInterval(checkVideo, 10000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debugMode]);
+
+  // Diagnostik (tillfälligt): logga MediaDevices-permission och kamera-tillgång
+  useEffect(() => {
+    if (!debugMode) return;
+    if (!navigator.mediaDevices) { dbg('CAM: navigator.mediaDevices saknas'); return; }
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: 'camera' })
+        .then(r => dbg('CAM: permission=' + r.state))
+        .catch(e => dbg('CAM: perm-query fel: ' + e.message));
+    } else {
+      dbg('CAM: navigator.permissions saknas');
+    }
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(s => {
+        const t = s.getVideoTracks()[0];
+        dbg('CAM: getUserMedia OK label="' + (t?.label || '?') + '"');
+        s.getTracks().forEach(x => x.stop());
+      })
+      .catch(e => dbg('CAM: getUserMedia FAIL ' + e.name + ' - ' + e.message));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debugMode]);
 
   useEffect(() => {
     fetchKioskData(accessToken)
@@ -477,8 +531,19 @@ export default function KioskPage({ accessToken }) {
     // Visuell feedback medan kameraanalys + INSERT pågår
     setSubmitting(true);
 
+    // Diagnostik (tillfälligt): timestamp på när vi anropar captureAnalysis
+    dbg('FACE: kallar captureAnalysis()');
+    const t0 = Date.now();
+
     // Kameraanalys asynkront i bakgrunden
     captureAnalysis().then(faceResult => {
+      const dt = Date.now() - t0;
+      // Diagnostik (tillfälligt): vad fick vi tillbaka?
+      if (faceResult) {
+        dbg(`FACE: OK i ${dt}ms age=${faceResult.ageGroup} gender=${faceResult.gender} dup=${faceResult.isDuplicate}`);
+      } else {
+        dbg(`FACE: NULL i ${dt}ms (inget ansikte / model fail)`);
+      }
       setFaceData(faceResult ? {
         ageGroup:    faceResult.ageGroup,
         gender:      faceResult.gender,
@@ -489,6 +554,9 @@ export default function KioskPage({ accessToken }) {
         submit(val, '', '', '', faceResult);
       }
     }).catch(e => {
+      const dt = Date.now() - t0;
+      // Diagnostik (tillfälligt): vilket fel kastade captureAnalysis?
+      dbg(`FACE: THROW i ${dt}ms ${e?.name || ''} - ${e?.message || e}`);
       console.warn('[Kiosk] Kameraanalys misslyckades:', e.message);
       if (!step2HasContent(val)) {
         submit(val, '', '', '', null);
@@ -539,6 +607,30 @@ export default function KioskPage({ accessToken }) {
     />
   );
 
+  // Diagnostik-overlay (tillfälligt). Visas bara om ?debug=1 finns i URL.
+  // Lägg den i en separat React-fragment så den ritas över allt annat.
+  const debugOverlay = debugMode ? (
+    <div style={{
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      maxHeight: '40vh',
+      overflowY: 'auto',
+      background: 'rgba(0, 0, 0, 0.85)',
+      color: '#9fe',
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      padding: '6px 8px',
+      lineHeight: 1.3,
+      zIndex: 99999,
+      pointerEvents: 'none',
+      whiteSpace: 'pre-wrap',
+    }}>
+      {debugLog.length === 0 ? '(diag tom — väntar på events)' : debugLog.join('\n')}
+    </div>
+  ) : null;
+
   // ════════════════════════════════════════════════════════
   // STEG 3 — Tack-vy
   // ════════════════════════════════════════════════════════
@@ -552,6 +644,7 @@ export default function KioskPage({ accessToken }) {
           <p className="kiosk-thanks-sub">Ditt svar har sparats.</p>
           <div className="kiosk-thanks-countdown">{countdown}</div>
         </div>
+        {debugOverlay}
       </>
     );
   }
@@ -681,6 +774,7 @@ export default function KioskPage({ accessToken }) {
             </div>
           </form>
         </div>
+        {debugOverlay}
       </>
     );
   }
@@ -732,6 +826,7 @@ export default function KioskPage({ accessToken }) {
           </div>
         </div>
       </div>
+      {debugOverlay}
     </>
   );
 }
