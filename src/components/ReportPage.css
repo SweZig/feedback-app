@@ -378,3 +378,32 @@
   min-width: 36px;
   text-align: center;
 }
+
+/* Klickbara kön-rader → filtrerar åldersgrupperna */
+.demo-row--clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background-color 120ms ease;
+}
+.demo-row--clickable:hover {
+  background-color: rgba(30, 58, 79, 0.06);
+}
+.demo-row--clickable:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.demo-row--active {
+  background-color: rgba(30, 58, 79, 0.12);
+}
+.demo-row--active:hover {
+  background-color: rgba(30, 58, 79, 0.16);
+}
+
+.demo-group-hint {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--color-text-light);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 0.35rem;
+}

@@ -252,8 +252,14 @@ function TouchpointsView({ touchpoints, departments, allResponses, periodLabel }
 
 // ── Demografi Beta ─────────────────────────────────────────────────────────────
 function DemographicsCard({ responses, duplicateCount }) {
+  const [selectedGender, setSelectedGender] = useState(null);
+
   const withDemo = responses.filter(r => r.ageGroup || r.gender);
   const total = withDemo.length;
+  const overallTotal = responses.length;
+  const coveragePct = overallTotal > 0
+    ? ((total / overallTotal) * 100).toFixed(1).replace('.', ',')
+    : '0,0';
 
   if (total === 0) {
     return (
@@ -266,31 +272,40 @@ function DemographicsCard({ responses, duplicateCount }) {
     );
   }
 
-  function groupStats(key, groups) {
+  // Åldersgrupperna filtreras på valt kön om något är valt
+  const ageGroupSource = selectedGender
+    ? withDemo.filter(r => r.gender === selectedGender)
+    : withDemo;
+  const ageTotal = ageGroupSource.length;
+
+  function groupStats(source, sourceTotal, key, groups) {
     return groups.map(g => {
-      const group = withDemo.filter(r => r[key] === g.value);
+      const group = source.filter(r => r[key] === g.value);
       const npsResult = calculateNps(group);
       return {
+        value: g.value,
         label: g.label,
         count: group.length,
-        pct: Math.round((group.length / total) * 100),
+        pct: sourceTotal > 0 ? Math.round((group.length / sourceTotal) * 100) : 0,
         nps: npsResult?.nps ?? null,
       };
     }).filter(g => g.count > 0);
   }
 
-  const genderGroups = groupStats('gender', [
-    { value: 'man', label: 'Man' },
+  const genderGroups = groupStats(withDemo, total, 'gender', [
+    { value: 'man',    label: 'Man' },
     { value: 'kvinna', label: 'Kvinna' },
-    { value: 'okänt', label: 'Okänt kön' },
+    { value: 'okänt',  label: 'Okänt kön' },
   ]);
 
-  const ageGroups = groupStats('ageGroup', [
-    { value: 'barn', label: 'Barn (<13)' },
+  const ageGroups = groupStats(ageGroupSource, ageTotal, 'ageGroup', [
+    { value: 'barn',   label: 'Barn (<13)' },
     { value: 'ungdom', label: 'Ungdom (13–25)' },
-    { value: 'vuxen', label: 'Vuxen (26–60)' },
-    { value: 'äldre', label: 'Äldre (>60)' },
+    { value: 'vuxen',  label: 'Vuxen (26–60)' },
+    { value: 'äldre',  label: 'Äldre (>60)' },
   ]);
+
+  const selectedGenderLabel = genderGroups.find(g => g.value === selectedGender)?.label;
 
   function NpsChip({ nps }) {
     if (nps === null) return null;
@@ -298,21 +313,49 @@ function DemographicsCard({ responses, duplicateCount }) {
     return <span className="demo-nps-chip" style={{ background: color }}>{nps >= 0 ? '+' : ''}{nps}</span>;
   }
 
-  function DemoGroup({ title, groups }) {
+  function DemoGroup({ title, groups, onSelect, activeValue, hint }) {
+    const clickable = !!onSelect;
     return (
       <div className="demo-group">
-        <h4 className="demo-group-title">{title}</h4>
-        {groups.map(g => (
-          <div key={g.label} className="demo-row">
-            <span className="demo-row-label">{g.label}</span>
-            <div className="demo-bar-wrap">
-              <div className="demo-bar" style={{ width: `${g.pct}%` }} />
+        <h4 className="demo-group-title">
+          {title}
+          {hint && <span className="demo-group-hint">{hint}</span>}
+        </h4>
+        {groups.map(g => {
+          const isActive = activeValue === g.value;
+          return (
+            <div
+              key={g.label}
+              className={
+                'demo-row' +
+                (clickable ? ' demo-row--clickable' : '') +
+                (isActive  ? ' demo-row--active'    : '')
+              }
+              onClick={clickable ? () => onSelect(isActive ? null : g.value) : undefined}
+              role={clickable ? 'button' : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onKeyDown={clickable ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(isActive ? null : g.value);
+                }
+              } : undefined}
+              title={
+                clickable
+                  ? (isActive ? 'Klicka för att rensa filter' : `Filtrera åldersgrupp på ${g.label}`)
+                  : undefined
+              }
+            >
+              <span className="demo-row-label">{g.label}</span>
+              <div className="demo-bar-wrap">
+                <div className="demo-bar" style={{ width: `${g.pct}%` }} />
+              </div>
+              <span className="demo-row-pct">{g.pct}%</span>
+              <span className="demo-row-count">{g.count} sv</span>
+              <NpsChip nps={g.nps} />
             </div>
-            <span className="demo-row-pct">{g.pct}%</span>
-            <span className="demo-row-count">{g.count} sv</span>
-            <NpsChip nps={g.nps} />
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }
@@ -321,14 +364,26 @@ function DemographicsCard({ responses, duplicateCount }) {
     <div className="report-card demo-card">
       <div className="demo-header">
         <h3>Demografi <span className="demo-beta-badge">Beta</span></h3>
-        <span className="demo-coverage">{total} av {responses.length} svar med demografidata</span>
+        <span className="demo-coverage">
+          {total} av {overallTotal} svar med demografidata ({coveragePct}%)
+        </span>
       </div>
       {duplicateCount > 0 && (
-        <p className="demo-duplicate-info">ℹ️ {duplicateCount} dubblettvar filtrerade från NPS-beräkningar.</p>
+        <p className="demo-duplicate-info">ℹ️ {duplicateCount} dubblettsvar filtrerade från NPS-beräkningar.</p>
       )}
       <div className="demo-groups">
-        <DemoGroup title="Kön" groups={genderGroups} />
-        <DemoGroup title="Åldersgrupp" groups={ageGroups} />
+        <DemoGroup
+          title="Kön"
+          groups={genderGroups}
+          onSelect={setSelectedGender}
+          activeValue={selectedGender}
+          hint={selectedGender ? ' — klicka igen för att rensa' : ' — klicka för att filtrera ålder'}
+        />
+        <DemoGroup
+          title="Åldersgrupp"
+          groups={ageGroups}
+          hint={selectedGenderLabel ? ` — filtrerat på ${selectedGenderLabel} (${ageTotal} svar)` : null}
+        />
       </div>
     </div>
   );
