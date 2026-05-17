@@ -55,7 +55,33 @@ function getHeatmapColor(nps) {
   return { bg: '#e74c3c', text: '#fff' };
 }
 
+// Räknar NPS + andel kritiker från en scores-array (heltal 0–10)
+function summarizeScores(scores) {
+  if (!scores || scores.length === 0) return null;
+  const result = calculateNps(scores.map((score) => ({ score })));
+  if (!result) return null;
+  const detractorPct = Math.round((result.counts.detractor / result.total) * 100);
+  return { nps: result.nps, total: result.total, detractorPct };
+}
+
+// Färgskala för andel kritiker (challenges-läge)
+function getDetractorColor(pct) {
+  if (pct >= 30) return { bg: '#e74c3c', text: '#fff' };
+  if (pct >= 15) return { bg: '#f1c40f', text: '#333' };
+  return { bg: '#27ae60', text: '#fff' };
+}
+
 function WeeklyHeatmap({ responses, touchpoints }) {
+  // Toggle: visa andel kritiker (0–6) istället för NPS-poäng
+  const [showChallenges, setShowChallenges] = useState(() => {
+    try { return localStorage.getItem('report_heatmap_challenges') === 'true'; } catch { return false; }
+  });
+  function toggleChallenges() {
+    const next = !showChallenges;
+    setShowChallenges(next);
+    try { localStorage.setItem('report_heatmap_challenges', String(next)); } catch {}
+  }
+
   // Only physical touchpoints
   const physicalTpIds = new Set(touchpoints.filter((t) => t.type === 'physical').map((t) => t.id));
   const physicalResponses = responses.filter((r) => physicalTpIds.has(r.touchpointId));
@@ -79,8 +105,78 @@ function WeeklyHeatmap({ responses, touchpoints }) {
     matrix[dayIdx][slotIdx].scores.push(r.score);
   });
 
+  // Totals (NPS-viktade): rad per veckodag, kolumn per tidsslot, samt grand total
+  const rowTotals = matrix.map((row) => summarizeScores(row.flatMap((c) => c.scores)));
+  const colTotals = TIME_SLOTS.map((_, si) =>
+    summarizeScores(matrix.flatMap((row) => row[si].scores))
+  );
+  const grandTotal = summarizeScores(physicalResponses.map((r) => r.score));
+
+  // Hjälpare: format för cellens huvudvärde + färg
+  function renderCellContent(summary) {
+    if (!summary) return null;
+    if (showChallenges) {
+      return {
+        main: `${summary.detractorPct}%`,
+        count: summary.total,
+        color: getDetractorColor(summary.detractorPct),
+      };
+    }
+    return {
+      main: `${summary.nps >= 0 ? '+' : ''}${summary.nps}`,
+      count: summary.total,
+      color: getHeatmapColor(summary.nps),
+    };
+  }
+
+  // Diskret total-cell (ofärgad, mjukare typografi)
+  function renderTotalCell(summary, key, extraStyle = {}) {
+    if (!summary) {
+      return (
+        <td key={key} className="heatmap-cell heatmap-total-cell" style={{ background: '#fafafa', color: '#bbb', ...extraStyle }}>
+          –
+        </td>
+      );
+    }
+    const mainValue = showChallenges
+      ? `${summary.detractorPct}%`
+      : `${summary.nps >= 0 ? '+' : ''}${summary.nps}`;
+    return (
+      <td
+        key={key}
+        className="heatmap-cell heatmap-total-cell"
+        style={{
+          background: '#fafafa',
+          color: '#34495e',
+          borderLeft: '2px solid #e0e0e0',
+          ...extraStyle,
+        }}
+      >
+        <span className="heatmap-nps" style={{ fontWeight: 600 }}>{mainValue}</span>
+        <span className="heatmap-count" style={{ color: '#7f8c8d' }}>{summary.count ?? summary.total}</span>
+      </td>
+    );
+  }
+
   return (
     <div className="heatmap-wrap">
+      {/* Toggle: Visa var vi har utmaningar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.75rem' }}>
+        <button
+          className={`setting-switch ${showChallenges ? 'setting-switch--on' : ''}`}
+          onClick={toggleChallenges}
+          aria-label="Visa var vi har utmaningar"
+        >
+          <span className="setting-switch-knob" />
+        </button>
+        <span
+          style={{ fontSize: '0.85rem', color: 'var(--color-text-light)', cursor: 'pointer', userSelect: 'none' }}
+          onClick={toggleChallenges}
+        >
+          Visa var vi har utmaningar
+        </span>
+      </div>
+
       <table className="heatmap-table">
         <thead>
           <tr>
@@ -88,6 +184,12 @@ function WeeklyHeatmap({ responses, touchpoints }) {
             {TIME_SLOTS.map((s) => (
               <th key={s.label} className="heatmap-th">{s.label}</th>
             ))}
+            <th
+              className="heatmap-th"
+              style={{ borderLeft: '2px solid #e0e0e0', color: '#7f8c8d', fontWeight: 600 }}
+            >
+              Total
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -99,25 +201,55 @@ function WeeklyHeatmap({ responses, touchpoints }) {
                 if (cell.scores.length === 0) {
                   return <td key={si} className="heatmap-cell heatmap-cell--empty">–</td>;
                 }
-                const result = calculateNps(cell.scores.map((score) => ({ score })));
-                const nps = result ? result.nps : null;
-                const { bg, text } = getHeatmapColor(nps);
+                const summary = summarizeScores(cell.scores);
+                const content = renderCellContent(summary);
                 return (
-                  <td key={si} className="heatmap-cell" style={{ background: bg, color: text }}>
-                    <span className="heatmap-nps">{nps >= 0 ? '+' : ''}{nps}</span>
-                    <span className="heatmap-count">{cell.scores.length}</span>
+                  <td key={si} className="heatmap-cell" style={{ background: content.color.bg, color: content.color.text }}>
+                    <span className="heatmap-nps">{content.main}</span>
+                    <span className="heatmap-count">{content.count}</span>
                   </td>
                 );
               })}
+              {renderTotalCell(rowTotals[di], `rowtot-${di}`)}
             </tr>
           ))}
+          {/* Kolumn-totaler (diskret rad längst ned) */}
+          <tr>
+            <td
+              className="heatmap-day"
+              style={{ borderTop: '2px solid #e0e0e0', color: '#7f8c8d', fontWeight: 600 }}
+            >
+              Total
+            </td>
+            {colTotals.map((ct, si) =>
+              renderTotalCell(ct, `coltot-${si}`, { borderTop: '2px solid #e0e0e0', borderLeft: 'none' })
+            )}
+            {renderTotalCell(grandTotal, 'grandtot', {
+              borderTop: '2px solid #e0e0e0',
+              borderLeft: '2px solid #e0e0e0',
+              background: '#f4f4f4',
+            })}
+          </tr>
         </tbody>
       </table>
+
       <div className="heatmap-legend">
-        <span><span className="heatmap-dot" style={{ background: '#27ae60' }}></span>NPS ≥ 30</span>
-        <span><span className="heatmap-dot" style={{ background: '#f1c40f' }}></span>NPS 0–29</span>
-        <span><span className="heatmap-dot" style={{ background: '#e74c3c' }}></span>NPS &lt; 0</span>
-        <span style={{ color: '#aaa' }}>– = inga svar</span>
+        {showChallenges ? (
+          <>
+            <span><span className="heatmap-dot" style={{ background: '#27ae60' }}></span>Kritiker &lt; 15%</span>
+            <span><span className="heatmap-dot" style={{ background: '#f1c40f' }}></span>Kritiker 15–29%</span>
+            <span><span className="heatmap-dot" style={{ background: '#e74c3c' }}></span>Kritiker ≥ 30%</span>
+            <span style={{ color: '#aaa' }}>– = inga svar</span>
+            <span style={{ color: '#7f8c8d', fontStyle: 'italic' }}>Visar andel kritiker (0–6)</span>
+          </>
+        ) : (
+          <>
+            <span><span className="heatmap-dot" style={{ background: '#27ae60' }}></span>NPS ≥ 30</span>
+            <span><span className="heatmap-dot" style={{ background: '#f1c40f' }}></span>NPS 0–29</span>
+            <span><span className="heatmap-dot" style={{ background: '#e74c3c' }}></span>NPS &lt; 0</span>
+            <span style={{ color: '#aaa' }}>– = inga svar</span>
+          </>
+        )}
       </div>
     </div>
   );
