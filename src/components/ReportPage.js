@@ -71,6 +71,68 @@ function getDetractorColor(pct) {
   return { bg: '#27ae60', text: '#fff' };
 }
 
+// ── Trend-stöd ────────────────────────────────────────────────────────────────
+// ISO 8601-vecka (måndag–söndag). Returnerar { year, week } där `year` är ISO-
+// veckans år (kan skilja sig från kalenderåret i januari/december).
+function getIsoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return { year: d.getUTCFullYear(), week: weekNum };
+}
+
+const MONTH_LABELS_SV = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+
+// Gruppera svar i tidsfönster (dag / vecka / månad). Returnerar en sorterad
+// lista av { key, label, nps, total, counts } där varje bucket motsvarar en
+// period. Tomma perioder utelämnas — chartet visar bara de buckets där svar
+// faktiskt finns.
+function groupResponsesByBucket(responses, granularity) {
+  const buckets = new Map();
+  responses.forEach((r) => {
+    const d = new Date(r.timestamp);
+    let key, label, sortKey;
+
+    if (granularity === 'day') {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      key = `${y}-${m}-${day}`;
+      sortKey = key;
+      label = `${day}/${m}`;
+    } else if (granularity === 'week') {
+      const { year, week } = getIsoWeek(d);
+      key = `${year}-W${String(week).padStart(2, '0')}`;
+      sortKey = key;
+      label = `v${week}`;
+    } else { // month
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      key = `${y}-${String(m + 1).padStart(2, '0')}`;
+      sortKey = key;
+      label = `${MONTH_LABELS_SV[m]} ${String(y).slice(-2)}`;
+    }
+
+    if (!buckets.has(key)) buckets.set(key, { key, label, sortKey, scores: [] });
+    buckets.get(key).scores.push(r.score);
+  });
+
+  return [...buckets.values()]
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+    .map((b) => {
+      const res = calculateNps(b.scores.map((s) => ({ score: s })));
+      return {
+        key: b.key,
+        label: b.label,
+        nps: res?.nps ?? 0,
+        total: res?.total ?? 0,
+        counts: res?.counts ?? { detractor: 0, passive: 0, promoter: 0 },
+      };
+    });
+}
+
 function WeeklyHeatmap({ responses, touchpoints }) {
   // Toggle: visa andel kritiker (0–6) istället för NPS-poäng
   const [showChallenges, setShowChallenges] = useState(() => {
@@ -256,6 +318,173 @@ function WeeklyHeatmap({ responses, touchpoints }) {
 }
 
 // NPS gauge SVG
+// ── Trend-vy ───────────────────────────────────────────────────────────────
+// Visar NPS över tid med toggle dag / vecka / månad. Återanvänder samma
+// avdelnings-/mätpunktsfilter och datumintervall som Översikt och Veckoanalys.
+// Datakälla: dubblettrensade svar (npsResponses) för konsistens med övriga
+// flikar.
+function TrendView({ responses, periodLabel }) {
+  const [granularity, setGranularity] = useState(() => {
+    try { return localStorage.getItem('report_trend_granularity') || 'day'; } catch { return 'day'; }
+  });
+  function pickGranularity(g) {
+    setGranularity(g);
+    try { localStorage.setItem('report_trend_granularity', g); } catch {}
+  }
+
+  const buckets = groupResponsesByBucket(responses, granularity);
+
+  const GRAN_OPTIONS = [
+    { key: 'day',   label: 'Dag' },
+    { key: 'week',  label: 'Vecka' },
+    { key: 'month', label: 'Månad' },
+  ];
+
+  // Chart-geometri. Vi använder fixerad bar-bredd och låter SVG:n växa
+  // horisontellt — wrapper-div har overflow-x:auto så långa serier scrollar.
+  const chartHeight   = 240;
+  const barMaxHeight  = chartHeight / 2 - 12;
+  const barWidth      = 34;
+  const barGap        = 10;
+  const leftPad       = 42;
+  const rightPad      = 16;
+  const labelRowHeight = 38;
+  const totalHeight   = chartHeight + labelRowHeight;
+  const chartWidth    = Math.max(640, leftPad + rightPad + buckets.length * (barWidth + barGap));
+  const zeroY         = chartHeight / 2;
+
+  function npsColor(nps) {
+    if (nps >= 30) return '#27ae60';
+    if (nps >= 0)  return '#f39c12';
+    return '#e74c3c';
+  }
+
+  // Totalsumma för perioden — visas som en liten sammanfattning.
+  const periodTotal = calculateNps(responses.map((r) => ({ score: r.score })));
+
+  return (
+    <div className="report-card">
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '0.5rem',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+      }}>
+        <h3 style={{ margin: 0 }}>NPS-trend</h3>
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {GRAN_OPTIONS.map((g) => (
+            <button
+              key={g.key}
+              className={`filter-btn ${granularity === g.key ? 'filter-btn--active' : ''}`}
+              onClick={() => pickGranularity(g.key)}
+            >{g.label}</button>
+          ))}
+        </div>
+      </div>
+      <p className="report-card-desc">
+        NPS-poäng grupperat per {granularity === 'day' ? 'dag' : granularity === 'week' ? 'ISO-vecka (mån–sön)' : 'månad'}.
+        Period: {periodLabel}{periodTotal ? `, ${periodTotal.total} svar totalt.` : '.'}
+      </p>
+
+      {buckets.length === 0 ? (
+        <p className="report-empty-text">Inga svar att gruppera i vald period.</p>
+      ) : (
+        <>
+          <div style={{ overflowX: 'auto', overflowY: 'hidden' }}>
+            <svg
+              viewBox={`0 0 ${chartWidth} ${totalHeight}`}
+              style={{ minWidth: chartWidth, height: totalHeight, display: 'block' }}
+              role="img"
+              aria-label="NPS-trend"
+            >
+              {/* Y-axel-rutnät */}
+              {[100, 50, 0, -50, -100].map((v) => {
+                const y = zeroY - (v / 100) * barMaxHeight;
+                const isZero = v === 0;
+                return (
+                  <g key={v}>
+                    <line
+                      x1={leftPad} x2={chartWidth - rightPad}
+                      y1={y} y2={y}
+                      stroke={isZero ? '#7f8c8d' : '#e8eaed'}
+                      strokeWidth={isZero ? 1.25 : 1}
+                      strokeDasharray={isZero ? 'none' : '3,3'}
+                    />
+                    <text
+                      x={leftPad - 6} y={y + 3}
+                      textAnchor="end" fontSize="9" fill="#7f8c8d"
+                    >{v >= 0 ? '+' : ''}{v}</text>
+                  </g>
+                );
+              })}
+
+              {/* Stapelserie */}
+              {buckets.map((b, i) => {
+                const cx = leftPad + i * (barWidth + barGap) + barWidth / 2;
+                const x  = cx - barWidth / 2;
+                const h  = Math.max(2, Math.abs(b.nps) / 100 * barMaxHeight);
+                const y  = b.nps >= 0 ? zeroY - h : zeroY;
+                const color = npsColor(b.nps);
+                const valueY = b.nps >= 0 ? y - 4 : y + h + 11;
+                return (
+                  <g key={b.key}>
+                    <rect
+                      x={x} y={y}
+                      width={barWidth} height={h}
+                      fill={color}
+                      rx={3}
+                    >
+                      <title>
+                        {b.label} · NPS {b.nps >= 0 ? '+' : ''}{b.nps} · {b.total} svar
+                        {`\nKritiker ${b.counts.detractor}  Passiva ${b.counts.passive}  Ambassadörer ${b.counts.promoter}`}
+                      </title>
+                    </rect>
+                    {/* NPS-värde ovanför/under stapeln */}
+                    <text
+                      x={cx} y={valueY}
+                      textAnchor="middle"
+                      fontSize="10" fontWeight="600"
+                      fill={color}
+                    >{b.nps >= 0 ? '+' : ''}{b.nps}</text>
+                    {/* X-label */}
+                    <text
+                      x={cx} y={chartHeight + 16}
+                      textAnchor="middle"
+                      fontSize="10" fill="#7f8c8d"
+                    >{b.label}</text>
+                    {/* Antal svar */}
+                    <text
+                      x={cx} y={chartHeight + 30}
+                      textAnchor="middle"
+                      fontSize="9" fill="#bdc3c7"
+                    >{b.total} sv</text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            marginTop: '0.5rem',
+            fontSize: '0.78rem',
+            color: '#7f8c8d',
+          }}>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#27ae60', borderRadius: 2, verticalAlign: 'middle', marginRight: 4 }} />NPS ≥ 30</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#f39c12', borderRadius: 2, verticalAlign: 'middle', marginRight: 4 }} />NPS 0–29</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, background: '#e74c3c', borderRadius: 2, verticalAlign: 'middle', marginRight: 4 }} />NPS &lt; 0</span>
+            <span style={{ fontStyle: 'italic' }}>Hovra över en stapel för fördelning.</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function NpsGauge({ nps, total, periodLabel }) {
   const clampedNps = Math.max(-100, Math.min(100, nps));
   const angleDeg = 180 - ((clampedNps + 100) / 200) * 180;
@@ -527,7 +756,7 @@ export default function ReportPage({ activeCustomer }) {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [filterMode, setFilterMode] = useState('all');
-  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly' | 'touchpoints'
+  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly' | 'trend' | 'touchpoints'
   const [focusImprovements, setFocusImprovements] = useState(false);
   const [showDemographics, setShowDemographics] = useState(() => {
     try { return localStorage.getItem('report_show_demographics') === 'true'; } catch { return false; }
@@ -691,9 +920,9 @@ export default function ReportPage({ activeCustomer }) {
     ? (fromDate && toDate ? `${fromDate} – ${toDate}` : 'Datumintervall')
     : TIME_FILTERS.find((f) => f.key === filterKey)?.label || 'Alla';
 
-  // Filterdropdownen visas på Översikt och Veckoanalys (men inte på
+  // Filterdropdownen visas på Översikt, Veckoanalys och Trend (men inte på
   // Mätpunkter — där är hela poängen att se alla mätpunkter parallellt).
-  const showDeptFilter = hasDepts && (activeView === 'overview' || activeView === 'weekly');
+  const showDeptFilter = hasDepts && (activeView === 'overview' || activeView === 'weekly' || activeView === 'trend');
 
   return (
     <div className="report">
@@ -711,6 +940,10 @@ export default function ReportPage({ activeCustomer }) {
             onClick={() => setActiveView('weekly')}
           >Veckoanalys</button>
         )}
+        <button
+          className={`report-view-tab ${activeView === 'trend' ? 'report-view-tab--active' : ''}`}
+          onClick={() => setActiveView('trend')}
+        >Trend</button>
         {touchpoints.length > 0 && (
           <button
             className={`report-view-tab ${activeView === 'touchpoints' ? 'report-view-tab--active' : ''}`}
@@ -781,6 +1014,21 @@ export default function ReportPage({ activeCustomer }) {
             <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar.</p>
             <WeeklyHeatmap responses={npsResponses} touchpoints={touchpoints} />
           </div>
+        </>
+      )}
+
+      {/* ===== TREND VIEW =====
+         Visar NPS över tid med toggle dag/vecka/månad. Använder npsResponses
+         (tp-filtrerat + dubblettrensat) så att filterval och svarsantal är
+         konsistenta med Översikt och Veckoanalys. */}
+      {activeView === 'trend' && (
+        <>
+          <TotalChainCard
+            allResponses={npsResponses}
+            periodLabel={periodLabel}
+            title={filterMode === 'all' ? 'Total Kedja' : 'Filtrerat urval'}
+          />
+          <TrendView responses={npsResponses} periodLabel={periodLabel} />
         </>
       )}
 

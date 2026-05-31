@@ -506,6 +506,15 @@ export default function KioskPage({ accessToken }) {
   }
 
   // ── Score-val: navigera direkt, kör kameraanalys i bakgrunden ──
+  //
+  // Sprint A.8 (face-fix): captureAnalysis() körs NU oavsett om svaret går
+  // vidare till steg 2 eller direkt till steg 3. Tidigare anropades funktionen
+  // bara i direkt-till-steg-3-grenen, så alla svar som passerade steg 2 fick
+  // age_group=NULL, gender=NULL och is_duplicate=false. Det förklarade varför
+  // bara ~24% av svaren hade demografidata och varför face-api-dedupen så
+  // sällan triggade. För steg 2-flödet kör analysen i bakgrunden och resultatet
+  // landar i faceData-state innan kunden hinner submitta (typiskt 200-500 ms
+  // jämfört med flera sekunder i steg 2).
   function handleScoreSelect(val) {
     // Sprint A.7: blockera dubbla taps. captureLockRef sätts synkront här,
     // så tap nr 2 (även 50ms efter tap nr 1) ser flaggan och avslutas tidigt.
@@ -520,22 +529,19 @@ export default function KioskPage({ accessToken }) {
     // Sprint A.6: trigga heartbeat vid user-interaction. Throttlas internt.
     heartbeatRef.current.pingNow();
 
-    // Navigera omedelbart — blockerar inte UI
-    if (step2HasContent(val)) {
-      setStep(2);
-      // Vi släpper INTE captureLockRef här — den nollställs i resetSurvey().
-      // Steg 2:s submit-paths använder savingRef i submit() för sin egen guard.
-      return;
-    }
-
-    // Visuell feedback medan kameraanalys + INSERT pågår
-    setSubmitting(true);
+    const goesToStep2 = step2HasContent(val);
 
     // Diagnostik (tillfälligt): timestamp på när vi anropar captureAnalysis
-    dbg('FACE: kallar captureAnalysis()');
+    dbg(`FACE: kallar captureAnalysis() (goesToStep2=${goesToStep2})`);
     const t0 = Date.now();
 
-    // Kameraanalys asynkront i bakgrunden
+    // Visuell feedback bara när vi blockerar UI:n (direkt-submit-grenen).
+    // I steg 2-grenen får kunden själv styra tempot.
+    if (!goesToStep2) setSubmitting(true);
+
+    // Navigera omedelbart till steg 2 om relevant — analysen rullar parallellt.
+    if (goesToStep2) setStep(2);
+
     captureAnalysis().then(faceResult => {
       const dt = Date.now() - t0;
       // Diagnostik (tillfälligt): vad fick vi tillbaka?
@@ -550,15 +556,18 @@ export default function KioskPage({ accessToken }) {
         isDuplicate: faceResult.isDuplicate,
       } : null);
 
-      if (!step2HasContent(val)) {
+      // Bara direkt-submit-grenen submittar härifrån. Steg 2-grenen läser
+      // faceData från state när kunden trycker Skicka (eller när inaktivitets-
+      // timern auto-submittar).
+      if (!goesToStep2) {
         submit(val, '', '', '', faceResult);
       }
     }).catch(e => {
       const dt = Date.now() - t0;
       // Diagnostik (tillfälligt): vilket fel kastade captureAnalysis?
       dbg(`FACE: THROW i ${dt}ms ${e?.name || ''} - ${e?.message || e}`);
-      console.warn('[Kiosk] Kameraanalys misslyckades:', e.message);
-      if (!step2HasContent(val)) {
+      console.warn('[Kiosk] Kameraanalys misslyckades:', e?.message || e);
+      if (!goesToStep2) {
         submit(val, '', '', '', null);
       }
     });
