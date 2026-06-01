@@ -235,6 +235,15 @@ export default function KioskPage({ accessToken }) {
   const savingRef = useRef(false);
   const captureLockRef = useRef(false);
 
+  // Sprint A.8.1 (face-fix-v2): faceData speglas i en ref så att alla submit-
+  // anrop kan läsa det senaste resultatet SYNKRONT, även om kunden klickar
+  // ett fördefinierat svar innan React hunnit committa state-uppdateringen.
+  // Bakgrund: faceData som state uppdateras av captureAnalysis().then() några
+  // hundra ms efter score-tappet. Om kunden i steg 2 klickar ett snabbt svar
+  // inom det fönstret läser submit() från en state som ännu inte är satt.
+  // Ref-läsning är synkron och garanterar att vi alltid ser senaste värdet.
+  const faceDataRef = useRef(null);
+
   // Heartbeat-controller (Sprint A.6) — pingNow() kan anropas vid user-interaction
   // för att garantera att vi får en ping även om setInterval pausats av WebView.
   const heartbeatRef = useRef({ stop: () => {}, pingNow: () => {} });
@@ -432,7 +441,9 @@ export default function KioskPage({ accessToken }) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('[Kiosk] step2 inaktivitet — auto-submit');
     }
-    submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail, faceData);
+    // Sprint A.8.1: läs faceDataRef.current (synkront, alltid färskt)
+    // istället för faceData state (kan vara stale i closure).
+    submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail, faceDataRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step2Countdown, step]);
 
@@ -459,6 +470,9 @@ export default function KioskPage({ accessToken }) {
     // session ge en spöksparning.
     savingRef.current = false;
     captureLockRef.current = false;
+    // Sprint A.8.1: nollställ också face-ref:en så nästa kund inte ärver
+    // föregående kunds demografidata om captureAnalysis skulle failas.
+    faceDataRef.current = null;
   }
 
   async function submit(s, c, pa, email = '', face = null) {
@@ -550,11 +564,15 @@ export default function KioskPage({ accessToken }) {
       } else {
         dbg(`FACE: NULL i ${dt}ms (inget ansikte / model fail)`);
       }
-      setFaceData(faceResult ? {
+      const data = faceResult ? {
         ageGroup:    faceResult.ageGroup,
         gender:      faceResult.gender,
         isDuplicate: faceResult.isDuplicate,
-      } : null);
+      } : null;
+      // Sprint A.8.1: spara i BÅDE ref och state. Ref-en läses synkront av
+      // submit-anropen i steg 2. State-en finns för framtida UI-bruk.
+      faceDataRef.current = data;
+      setFaceData(data);
 
       // Bara direkt-submit-grenen submittar härifrån. Steg 2-grenen läser
       // faceData från state när kunden trycker Skicka (eller när inaktivitets-
@@ -567,6 +585,7 @@ export default function KioskPage({ accessToken }) {
       // Diagnostik (tillfälligt): vilket fel kastade captureAnalysis?
       dbg(`FACE: THROW i ${dt}ms ${e?.name || ''} - ${e?.message || e}`);
       console.warn('[Kiosk] Kameraanalys misslyckades:', e?.message || e);
+      faceDataRef.current = null;
       if (!goesToStep2) {
         submit(val, '', '', '', null);
       }
@@ -674,7 +693,8 @@ export default function KioskPage({ accessToken }) {
           <form className="kiosk-form" onSubmit={e => {
             e.preventDefault();
             if (submitting) return; // Sprint A.7: redundant skydd ovanpå submit-guarden
-            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail, faceData);
+            // Sprint A.8.1: läs faceDataRef.current (synkront) istället för faceData state.
+            submit(score, freeTextEnabled ? comment : '', predefinedAnswer, followUpEmail, faceDataRef.current);
           }}>
             <p className="kiosk-step2-label">Vad beskriver bäst din upplevelse?</p>
 
@@ -692,7 +712,14 @@ export default function KioskPage({ accessToken }) {
                       const chosen = predefinedAnswer === answer.text ? '' : answer.text;
                       setPredefinedAnswer(chosen);
                       if (!freeTextEnabled && !showFollowUp && chosen !== '') {
-                        submit(score, '', chosen);
+                        // Sprint A.8.1 (face-fix-v2): skicka MED faceDataRef.current.
+                        // Tidigare anropades submit() med bara 3 argument vilket gjorde
+                        // att face=null default-värdet användes — och DET var den faktiska
+                        // orsaken till att face-rate stannade på ~20% efter v1-fixen.
+                        // Webhallens config (polaritetsfiltrerade fördef. svar, ingen
+                        // fritext, ingen follow-up för 4-10) går nästan uteslutande genom
+                        // den här grenen.
+                        submit(score, '', chosen, '', faceDataRef.current);
                       }
                     }}
                   >
