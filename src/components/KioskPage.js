@@ -31,6 +31,7 @@ import { supabase } from '../utils/supabaseClient';
 import { getDefaultConfig } from '../utils/settings';
 import { startHeartbeat } from '../utils/kioskHeartbeat';
 import { useFaceCamera } from '../hooks/useFaceCamera';
+import { enqueue, flushQueue, isNetworkError, getQueueSize } from '../utils/offlineQueue';
 import './KioskPage.css';
 
 const MEGAFON_LOGO = process.env.PUBLIC_URL + '/Megafon_bla_512px.png';
@@ -99,17 +100,26 @@ function resolveKioskConfig(chain, tp) {
 }
 
 // ── Spara svar anonymt ──
+// Sprint A.9: tar nu id och respondedAt som inparametrar så att samma
+// payload kan retryas idempotent via offline-kön utan att tidsstämpeln
+// vandrar. A.7:s unique-index på (touchpoint_id, score, sekund-truncerad
+// responded_at) blockerar dubblettinserts på databasnivå.
 async function saveKioskResponse({
+  id,
   touchpointId,
   chainId,
   score,
   comment,
   selectedAnswer,
   followUpEmail,
-  ageGroup,   // 'barn' | 'ungdom' | 'vuxen' | 'äldre' | null
-  gender,     // 'man' | 'kvinna' | 'okänt' | null
+  ageGroup,    // 'barn' | 'ungdom' | 'vuxen' | 'äldre' | null
+  gender,      // 'man' | 'kvinna' | 'okänt' | null
   isDuplicate, // boolean
+  respondedAt, // ISO-string
 }) {
+  const responseId = id          || generateUUID();
+  const responded  = respondedAt || new Date().toISOString();
+
   const nps_category =
     score <= 6 ? 'detractor' :
     score <= 8 ? 'passive'   : 'promoter';
@@ -120,12 +130,13 @@ async function saveKioskResponse({
   const { data: resp, error: respError } = await supabase
     .from('responses')
     .insert({
+      id:            responseId,
       touchpoint_id: touchpointId,
       chain_id:      chainId,
       score,
       nps_category,
       session_id:    generateUUID(),
-      responded_at:  new Date().toISOString(),
+      responded_at:  responded,
       metadata,
       age_group:     ageGroup     || null,
       gender:        gender       || null,
@@ -299,6 +310,51 @@ export default function KioskPage({ accessToken }) {
       .then(data => { setKioskData(data); setLoading(false); })
       .catch(e  => { setError(e.message); setLoading(false); });
   }, [accessToken]);
+
+  // Sprint A.9 — Offline-kö flush ───────────────────────────────────────
+  // Vid mount och var 60:e sekund: försök tömma offline-kön. Concurrency-
+  // guarden i flushQueue hindrar att en pågående flush överlappar med en
+  // post-submit-flush. Tyst i UI:n — vid eventuella items skickas de bara.
+  useEffect(() => {
+    if (!kioskData) return;
+
+    // Försök direkt vid mount så ev. items från tidigare session går först
+    flushQueue(saveKioskResponse)
+      .then(r => {
+        if (r.sent > 0 || r.dropped > 0) {
+          dbg(`QUEUE: mount-flush sent=${r.sent} dropped=${r.dropped} kvar=${r.queued}`);
+        }
+      })
+      .catch(() => {});
+
+    const intervalMs = 60 * 1000;
+    const id = setInterval(() => {
+      flushQueue(saveKioskResponse)
+        .then(r => {
+          if (r.sent > 0) {
+            dbg(`QUEUE: periodisk flush sent=${r.sent} kvar=${r.queued}`);
+          }
+        })
+        .catch(() => {});
+    }, intervalMs);
+
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kioskData]);
+
+  // Diagnostik (tillfälligt): visa kö-storlek i debug-overlayn så ?debug=1
+  // räcker för att verifiera att kön används vid nätverksavbrott.
+  useEffect(() => {
+    if (!debugMode) return;
+    const tick = () => {
+      const n = getQueueSize();
+      if (n > 0) dbg(`QUEUE: ${n} item${n === 1 ? '' : 's'} väntar`);
+    };
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debugMode]);
 
   // Heartbeat (Sprint A.5+A.6) — pingar Supabase var 15:e minut 08:15-21:00 svensk tid
   // så att admin kan se i Inställningar att kiosken är igång. Kör bara för
@@ -494,28 +550,51 @@ export default function KioskPage({ accessToken }) {
       step2TimerRef.current = null;
     }
 
+    // Sprint A.9: bygg payload med id och respondedAt HÄR (en gång) så att
+    // exakt samma payload kan användas både för direkt-INSERT och, vid
+    // nätverksfel, läggas på offline-kön och spelas upp senare utan att
+    // tidsstämpeln vandrar. A.7:s unique-index skyddar mot dubblettinserts
+    // om en flush råkar spela upp samma item igen.
+    const payload = {
+      id:             generateUUID(),
+      touchpointId:   kioskData.tp.id,
+      chainId:        kioskData.tp.chain_id,
+      score:          s,
+      comment:        c || '',
+      selectedAnswer: pa || null,
+      followUpEmail:  email || '',
+      ageGroup:       face?.ageGroup || null,
+      gender:         face?.gender || null,
+      isDuplicate:    face?.isDuplicate || false,
+      respondedAt:    new Date().toISOString(),
+    };
+
     try {
-      await saveKioskResponse({
-        touchpointId:   kioskData.tp.id,
-        chainId:        kioskData.tp.chain_id,
-        score:          s,
-        comment:        c || '',
-        selectedAnswer: pa || null,
-        followUpEmail:  email || '',
-        ageGroup:       face?.ageGroup   || null,
-        gender:         face?.gender     || null,
-        isDuplicate:    face?.isDuplicate || false,
-      });
+      await saveKioskResponse(payload);
       setStep(3);
       // OBS: savingRef nollställs INTE här — vi vill blockera ev. sena dubbel-anrop
       // som ligger i pipen från fördröjda captureAnalysis-promises. Ref nollställs
       // i resetSurvey() när tackvyn räknat ner.
+
+      // Sprint A.9: passa på att tömma ev. äldre köade items när vi just
+      // bekräftat att nätverket är uppe. Bakgrundsanrop — vi väntar inte in.
+      flushQueue(saveKioskResponse).catch(() => {});
     } catch (e) {
-      console.error('[Kiosk] saveResponse fel:', e);
-      setError('Kunde inte spara svar: ' + (e?.message || JSON.stringify(e)));
-      // Vid fel: släpp guarden så användaren kan försöka igen
-      savingRef.current = false;
-      setSubmitting(false);
+      if (isNetworkError(e)) {
+        // Sprint A.9: nätverksfel — lägg på offline-kön och fortsätt UX som
+        // vanligt. Slutkunden ser exakt samma tackvy. Kön töms automatiskt
+        // av periodisk flush eller nästa lyckade submit.
+        enqueue(payload);
+        console.log('[Kiosk] köade svar pga nätverksfel:', e?.message);
+        setStep(3);
+      } else {
+        // Riktigt fel (validering, RLS, schema) — visa fel-UI
+        console.error('[Kiosk] saveResponse fel:', e);
+        setError('Kunde inte spara svar: ' + (e?.message || JSON.stringify(e)));
+        // Vid fel: släpp guarden så användaren kan försöka igen
+        savingRef.current = false;
+        setSubmitting(false);
+      }
     }
   }
 
