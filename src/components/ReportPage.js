@@ -216,6 +216,132 @@ function buildStaffingTips(matrix, dayLabels, slotLabels, opts = {}) {
   return tips;
 }
 
+// ── Drill-down-popup (Sprint A.11) ──────────────────────────────────────────
+// Visar veckotrend för en specifik veckodag × tidsslot. Grupperar physical-
+// svaren på ISO-vecka och visar en stapel per vecka de senaste `span` veckorna.
+// Staplarnas höjd = antal svar, färg = NPS eller kritikerandel (följer cellens
+// showChallenges-läge). Tomma veckor visas som bleka staplar så att glest
+// underlag är synligt i stället för dolt bakom en jämn linje.
+function DrillDownModal({ dayIdx, slotIdx, physicalResponses, showChallenges, span, onSpanChange, onClose }) {
+  const slot = TIME_SLOTS[slotIdx];
+  // Filtrera svar till vald veckodag + tidsslot
+  const cellResponses = physicalResponses.filter((r) => {
+    const d = new Date(r.timestamp);
+    const di = (d.getDay() + 6) % 7;
+    const hour = d.getHours();
+    let si = TIME_SLOTS.findIndex((s) => hour >= s.from && hour < s.to);
+    if (si === -1) si = 3;
+    return di === dayIdx && si === slotIdx;
+  });
+
+  // Bygg lista av de senaste `span` ISO-veckorna (bakåt från nuvarande vecka),
+  // även de utan svar, så tomma veckor syns.
+  const now = new Date();
+  const weeks = [];
+  for (let i = span - 1; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    const { year, week } = getIsoWeek(d);
+    weeks.push({ year, week, key: `${year}-W${String(week).padStart(2, '0')}`, scores: [] });
+  }
+  const weekMap = new Map(weeks.map((w) => [w.key, w]));
+  cellResponses.forEach((r) => {
+    const d = new Date(r.timestamp);
+    const { year, week } = getIsoWeek(d);
+    const key = `${year}-W${String(week).padStart(2, '0')}`;
+    const w = weekMap.get(key);
+    if (w) w.scores.push(r.score);
+  });
+
+  // Per-vecka-värde beroende på läge
+  const weekData = weeks.map((w) => {
+    const s = summarizeScores(w.scores);
+    return {
+      week: w.week,
+      n: w.scores.length,
+      value: s ? (showChallenges ? s.detractorPct : s.nps) : null,
+    };
+  });
+
+  const withData = weekData.filter((w) => w.n > 0);
+  const totalN = weekData.reduce((sum, w) => sum + w.n, 0);
+  const maxN = Math.max(...weekData.map((w) => w.n), 1);
+  const avg = withData.length
+    ? Math.round(withData.reduce((sum, w) => sum + w.value * w.n, 0) / withData.reduce((sum, w) => sum + w.n, 0))
+    : null;
+
+  function colorFor(v) {
+    if (v === null) return '#eceff1';
+    return showChallenges ? getDetractorColor(v).bg : getHeatmapColor(v).bg;
+  }
+  function fmt(v) {
+    if (v === null) return '–';
+    return showChallenges ? `${v}%` : `${v >= 0 ? '+' : ''}${v}`;
+  }
+
+  return (
+    <div className="drill-overlay" onClick={onClose}>
+      <div className="drill-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="drill-head">
+          <div>
+            <div className="drill-title">{DAYS[dayIdx]} · {slot.label}</div>
+            <div className="drill-sub">
+              Senaste {span} veckorna · {showChallenges ? 'kritikerandel' : 'NPS'} · fysiska mätpunkter
+            </div>
+          </div>
+          <button className="drill-close" onClick={onClose} aria-label="Stäng">×</button>
+        </div>
+
+        <div className="drill-span">
+          {[8, 12, 16].map((s) => (
+            <button
+              key={s}
+              className={`drill-span-btn ${span === s ? 'drill-span-btn--active' : ''}`}
+              onClick={() => onSpanChange(s)}
+            >{s} v</button>
+          ))}
+        </div>
+
+        <div className="drill-stats">
+          <div className="drill-stat">
+            <div className="drill-stat-label">Snitt</div>
+            <div className="drill-stat-value" style={{ color: avg === null ? '#95a5a6' : colorFor(avg) }}>{fmt(avg)}</div>
+          </div>
+          <div className="drill-stat">
+            <div className="drill-stat-label">Totalt svar</div>
+            <div className="drill-stat-value">{totalN}</div>
+          </div>
+          <div className="drill-stat">
+            <div className="drill-stat-label">Veckor m. svar</div>
+            <div className="drill-stat-value">{withData.length}/{span}</div>
+          </div>
+        </div>
+
+        <div className="drill-bars">
+          {weekData.map((w, i) => {
+            const h = w.n === 0 ? 3 : Math.round((w.n / maxN) * 64) + 8;
+            return (
+              <div key={i} className="drill-bar-col" title={`v${w.week}: ${w.n} svar${w.value !== null ? `, ${fmt(w.value)}` : ''}`}>
+                <span className="drill-bar-val">{fmt(w.value)}</span>
+                <div
+                  className="drill-bar"
+                  style={{ height: `${h}px`, background: colorFor(w.value), opacity: w.n === 0 ? 0.35 : 1 }}
+                />
+                <span className="drill-bar-week">v{w.week}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="drill-note">
+          Staplarnas höjd = antal svar, färg = {showChallenges ? 'kritikerandel' : 'NPS'}. Blek stapel = vecka utan svar.
+          En enskild cell har ofta få svar per vecka — läs trenden som riktning, inte exakt värde.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function WeeklyHeatmap({ responses, touchpoints }) {
   // Toggle: visa andel kritiker (0–6) istället för NPS-poäng
   const [showChallenges, setShowChallenges] = useState(() => {
@@ -235,6 +361,20 @@ function WeeklyHeatmap({ responses, touchpoints }) {
     const next = !showReasons;
     setShowReasons(next);
     try { localStorage.setItem('report_heatmap_reasons', String(next)); } catch {}
+  }
+
+  // Drill-down: vald cell (day/slot) för popup med veckotrend. null = stängd.
+  const [drillCell, setDrillCell] = useState(null);
+  // Veckospann för drill-down-popupen (8/12/16), sparas i localStorage.
+  const [drillSpan, setDrillSpan] = useState(() => {
+    try {
+      const v = parseInt(localStorage.getItem('report_heatmap_drill_span'), 10);
+      return [8, 12, 16].includes(v) ? v : 8;
+    } catch { return 8; }
+  });
+  function setDrillSpanPersisted(span) {
+    setDrillSpan(span);
+    try { localStorage.setItem('report_heatmap_drill_span', String(span)); } catch {}
   }
 
   // Only physical touchpoints
@@ -332,16 +472,6 @@ function WeeklyHeatmap({ responses, touchpoints }) {
       <div className="heatmap-toggles">
         <div className="heatmap-toggle">
           <button
-            className={`setting-switch ${showReasons ? 'setting-switch--on' : ''}`}
-            onClick={toggleReasons}
-            aria-label="Visa orsaker"
-          >
-            <span className="setting-switch-knob" />
-          </button>
-          <span className="heatmap-toggle-label" onClick={toggleReasons}>Visa orsaker</span>
-        </div>
-        <div className="heatmap-toggle">
-          <button
             className={`setting-switch ${showChallenges ? 'setting-switch--on' : ''}`}
             onClick={toggleChallenges}
             aria-label="Visa var vi har utmaningar"
@@ -349,6 +479,16 @@ function WeeklyHeatmap({ responses, touchpoints }) {
             <span className="setting-switch-knob" />
           </button>
           <span className="heatmap-toggle-label" onClick={toggleChallenges}>Visa var vi har utmaningar</span>
+        </div>
+        <div className="heatmap-toggle">
+          <button
+            className={`setting-switch ${showReasons ? 'setting-switch--on' : ''}`}
+            onClick={toggleReasons}
+            aria-label="Visa orsaker"
+          >
+            <span className="setting-switch-knob" />
+          </button>
+          <span className="heatmap-toggle-label" onClick={toggleReasons}>Visa orsaker</span>
         </div>
       </div>
 
@@ -383,7 +523,16 @@ function WeeklyHeatmap({ responses, touchpoints }) {
                     + REASON_MARKERS.service.symbol.repeat(Math.min(cell.serviceCount, 2))
                   : '';
                 return (
-                  <td key={si} className="heatmap-cell" style={{ background: content.color.bg, color: content.color.text }}>
+                  <td
+                    key={si}
+                    className="heatmap-cell heatmap-cell--clickable"
+                    style={{ background: content.color.bg, color: content.color.text }}
+                    onClick={() => setDrillCell({ day: di, slot: si })}
+                    role="button"
+                    tabIndex={0}
+                    title={`${DAYS[di]} ${TIME_SLOTS[si].label} – klicka för veckotrend`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDrillCell({ day: di, slot: si }); } }}
+                  >
                     {markers && (
                       <span
                         className="heatmap-markers"
@@ -464,6 +613,18 @@ function WeeklyHeatmap({ responses, touchpoints }) {
           kritikerna. Läs dem som «var ska vi titta närmare», inte som statistiskt facit.
         </p>
       </div>
+
+      {drillCell && (
+        <DrillDownModal
+          dayIdx={drillCell.day}
+          slotIdx={drillCell.slot}
+          physicalResponses={physicalResponses}
+          showChallenges={showChallenges}
+          span={drillSpan}
+          onSpanChange={setDrillSpanPersisted}
+          onClose={() => setDrillCell(null)}
+        />
+      )}
     </div>
   );
 }
