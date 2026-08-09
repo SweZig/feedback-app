@@ -164,6 +164,100 @@
   flex-shrink: 0;
 }
 
+/* ── Orsaks-lager + bemanningstips (Sprint A.10) ─────────────────────────── */
+.heatmap-toggles {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.heatmap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.heatmap-toggle-label {
+  font-size: 0.85rem;
+  color: var(--color-text-light);
+  cursor: pointer;
+  user-select: none;
+}
+
+.heatmap-cell { position: relative; }
+
+.heatmap-markers {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.6rem;
+  line-height: 1;
+  letter-spacing: -1px;
+  opacity: 0.95;
+}
+
+.heatmap-marker-key {
+  display: inline-block;
+  min-width: 12px;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.staffing-tips {
+  margin-top: 1rem;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  background: #fbfbfc;
+}
+
+.staffing-tips-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.staffing-tips-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1e3a4f;
+}
+
+.staffing-tips-meta {
+  font-size: 0.75rem;
+  color: #7f8c8d;
+}
+
+.staffing-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.83rem;
+  line-height: 1.45;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 0.3rem;
+}
+
+.staffing-tip-icon { flex-shrink: 0; font-size: 0.75rem; line-height: 1.5; }
+
+.staffing-tip--action { background: #fdecea; color: #922b21; }
+.staffing-tip--watch  { background: #fef6e7; color: #7e5109; }
+.staffing-tip--ok     { background: #eafaf1; color: #1e7e46; }
+
+.staffing-tips-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: #95a5a6;
+  font-style: italic;
+  line-height: 1.4;
+}
+
 /* Gauge */
 .gauge-block { display: flex; flex-direction: column; align-items: center; }
 .gauge-svg { width: 100%; max-width: 200px; }
