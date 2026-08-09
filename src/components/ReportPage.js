@@ -133,6 +133,89 @@ function groupResponsesByBucket(responses, granularity) {
     });
 }
 
+// ── Orsaks-lager (Sprint A.10) ──────────────────────────────────────────────
+// Klassificerar ett predefinedAnswer till en driftorsak. Matchar på nyckelord
+// (inte exakt sträng) eftersom kedjor kan ha egna configOverride-formuleringar:
+// standard är "Det var för lång väntetid" men Webhallens export använder
+// "För lång väntetid". Nyckelordsmatchning fångar båda.
+function classifyReason(answer) {
+  if (!answer) return null;
+  const a = answer.toLowerCase();
+  if (a.includes('väntetid')) return 'wait';
+  if (a.includes('hjälp') || a.includes('service') || a.includes('bemöt')) return 'service';
+  return null;
+}
+
+const REASON_MARKERS = {
+  wait:    { symbol: '⏱', label: 'Lång väntetid' },
+  service: { symbol: '●', label: 'Dåligt bemötande' },
+};
+
+// Genererar konkreta bemanningstips ur heatmap-matrisen. Returnerar en lista
+// { level, text } där level styr färg ('action' | 'watch' | 'ok'). Tipsen
+// bygger BARA på celler med tillräckligt underlag (minNForTip) så att en
+// enstaka kritiker inte triggar en åtgärdsrekommendation. Håller sig medvetet
+// försiktig: pekar ut var man ska titta närmare, inte statistiskt facit.
+function buildStaffingTips(matrix, dayLabels, slotLabels, opts = {}) {
+  const minNForTip = opts.minNForTip ?? 8;      // celler under detta = för tunt
+  const detractorFloor = opts.detractorFloor ?? 18; // % kritiker för "hög"
+  const waitCells = [];
+  const serviceCells = [];
+
+  matrix.forEach((row, di) => {
+    row.forEach((cell, si) => {
+      const n = cell.scores.length;
+      if (n === 0) return;
+      const det = cell.scores.filter((s) => s <= 6).length;
+      const detPct = Math.round((det / n) * 100);
+      const label = `${dayLabels[di].slice(0, 3).toLowerCase()} ${slotLabels[si].toLowerCase()}`;
+      if (cell.waitCount > 0) {
+        waitCells.push({ label, detPct, n, flags: cell.waitCount, strong: n >= minNForTip && detPct >= detractorFloor });
+      }
+      if (cell.serviceCount > 0) {
+        serviceCells.push({ label, detPct, n, flags: cell.serviceCount });
+      }
+    });
+  });
+
+  const tips = [];
+
+  // Väntetid: prioritera celler med flera flaggor ELLER hög kritikerandel + underlag
+  const strongWait = waitCells.filter((c) => c.strong || c.flags >= 2)
+    .sort((a, b) => (b.flags - a.flags) || (b.detPct - a.detPct));
+  if (strongWait.length > 0) {
+    const top = strongWait.slice(0, 2).map((c) => c.label).join(' och ');
+    tips.push({
+      level: 'action',
+      text: `Förstärk bemanningen ${top} – återkommande signaler om lång väntetid.`,
+    });
+  } else if (waitCells.length > 0) {
+    tips.push({
+      level: 'watch',
+      text: 'Spridda väntetidssignaler utan tydligt mönster – ingen bemanningsåtgärd motiverad ännu. Fortsätt mäta.',
+    });
+  }
+
+  // Bemötande: bemanning löser sällan detta – flagga som coachning istället
+  if (serviceCells.length >= 2) {
+    const spots = serviceCells.slice(0, 2).map((c) => c.label).join(' och ');
+    tips.push({
+      level: 'watch',
+      text: `Signaler om bemötande ${spots} – snarare coachning/kundmöte än fler i kassan.`,
+    });
+  } else if (serviceCells.length === 1) {
+    tips.push({
+      level: 'watch',
+      text: `Enstaka signal om bemötande (${serviceCells[0].label}) – för tidigt att dra slutsats, håll koll.`,
+    });
+  }
+
+  if (tips.length === 0) {
+    tips.push({ level: 'ok', text: 'Inga väntetids- eller bemötandesignaler i vald period.' });
+  }
+  return tips;
+}
+
 function WeeklyHeatmap({ responses, touchpoints }) {
   // Toggle: visa andel kritiker (0–6) istället för NPS-poäng
   const [showChallenges, setShowChallenges] = useState(() => {
@@ -144,6 +227,16 @@ function WeeklyHeatmap({ responses, touchpoints }) {
     try { localStorage.setItem('report_heatmap_challenges', String(next)); } catch {}
   }
 
+  // Toggle: visa orsaks-markörer (väntetid / bemötande) i cellerna
+  const [showReasons, setShowReasons] = useState(() => {
+    try { return localStorage.getItem('report_heatmap_reasons') === 'true'; } catch { return false; }
+  });
+  function toggleReasons() {
+    const next = !showReasons;
+    setShowReasons(next);
+    try { localStorage.setItem('report_heatmap_reasons', String(next)); } catch {}
+  }
+
   // Only physical touchpoints
   const physicalTpIds = new Set(touchpoints.filter((t) => t.type === 'physical').map((t) => t.id));
   const physicalResponses = responses.filter((r) => physicalTpIds.has(r.touchpointId));
@@ -152,9 +245,10 @@ function WeeklyHeatmap({ responses, touchpoints }) {
     return <p className="report-empty-text">Inga svar från fysiska mätpunkter i vald period.</p>;
   }
 
-  // Build matrix: day (0=Mon..6=Sun) x slot
+  // Build matrix: day (0=Mon..6=Sun) x slot. Varje cell räknar även orsaks-
+  // flaggor (väntetid / bemötande) ur predefinedAnswer.
   const matrix = Array.from({ length: 7 }, () =>
-    Array.from({ length: 4 }, () => ({ scores: [] }))
+    Array.from({ length: 4 }, () => ({ scores: [], waitCount: 0, serviceCount: 0 }))
   );
 
   physicalResponses.forEach((r) => {
@@ -164,8 +258,20 @@ function WeeklyHeatmap({ responses, touchpoints }) {
     const hour = d.getHours();
     let slotIdx = TIME_SLOTS.findIndex((s) => hour >= s.from && hour < s.to);
     if (slotIdx === -1) slotIdx = 3; // fallback to evening
-    matrix[dayIdx][slotIdx].scores.push(r.score);
+    const cell = matrix[dayIdx][slotIdx];
+    cell.scores.push(r.score);
+    const reason = classifyReason(r.predefinedAnswer);
+    if (reason === 'wait') cell.waitCount += 1;
+    else if (reason === 'service') cell.serviceCount += 1;
   });
+
+  const staffingTips = buildStaffingTips(
+    matrix,
+    DAYS,
+    TIME_SLOTS.map((s) => s.label.replace(/\s*\(.*\)/, '')),
+  );
+  const totalWait = matrix.flat().reduce((sum, c) => sum + c.waitCount, 0);
+  const totalService = matrix.flat().reduce((sum, c) => sum + c.serviceCount, 0);
 
   // Totals (NPS-viktade): rad per veckodag, kolumn per tidsslot, samt grand total
   const rowTotals = matrix.map((row) => summarizeScores(row.flatMap((c) => c.scores)));
@@ -222,21 +328,28 @@ function WeeklyHeatmap({ responses, touchpoints }) {
 
   return (
     <div className="heatmap-wrap">
-      {/* Toggle: Visa var vi har utmaningar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.75rem' }}>
-        <button
-          className={`setting-switch ${showChallenges ? 'setting-switch--on' : ''}`}
-          onClick={toggleChallenges}
-          aria-label="Visa var vi har utmaningar"
-        >
-          <span className="setting-switch-knob" />
-        </button>
-        <span
-          style={{ fontSize: '0.85rem', color: 'var(--color-text-light)', cursor: 'pointer', userSelect: 'none' }}
-          onClick={toggleChallenges}
-        >
-          Visa var vi har utmaningar
-        </span>
+      {/* Toggles: Visa var vi har utmaningar + Visa orsaker */}
+      <div className="heatmap-toggles">
+        <div className="heatmap-toggle">
+          <button
+            className={`setting-switch ${showReasons ? 'setting-switch--on' : ''}`}
+            onClick={toggleReasons}
+            aria-label="Visa orsaker"
+          >
+            <span className="setting-switch-knob" />
+          </button>
+          <span className="heatmap-toggle-label" onClick={toggleReasons}>Visa orsaker</span>
+        </div>
+        <div className="heatmap-toggle">
+          <button
+            className={`setting-switch ${showChallenges ? 'setting-switch--on' : ''}`}
+            onClick={toggleChallenges}
+            aria-label="Visa var vi har utmaningar"
+          >
+            <span className="setting-switch-knob" />
+          </button>
+          <span className="heatmap-toggle-label" onClick={toggleChallenges}>Visa var vi har utmaningar</span>
+        </div>
       </div>
 
       <table className="heatmap-table">
@@ -265,8 +378,18 @@ function WeeklyHeatmap({ responses, touchpoints }) {
                 }
                 const summary = summarizeScores(cell.scores);
                 const content = renderCellContent(summary);
+                const markers = showReasons
+                  ? REASON_MARKERS.wait.symbol.repeat(Math.min(cell.waitCount, 3))
+                    + REASON_MARKERS.service.symbol.repeat(Math.min(cell.serviceCount, 2))
+                  : '';
                 return (
                   <td key={si} className="heatmap-cell" style={{ background: content.color.bg, color: content.color.text }}>
+                    {markers && (
+                      <span
+                        className="heatmap-markers"
+                        title={`${cell.waitCount ? `${cell.waitCount}× lång väntetid` : ''}${cell.waitCount && cell.serviceCount ? ', ' : ''}${cell.serviceCount ? `${cell.serviceCount}× bemötande` : ''}`}
+                      >{markers}</span>
+                    )}
                     <span className="heatmap-nps">{content.main}</span>
                     <span className="heatmap-count">{content.count}</span>
                   </td>
@@ -312,6 +435,34 @@ function WeeklyHeatmap({ responses, touchpoints }) {
             <span style={{ color: '#aaa' }}>– = inga svar</span>
           </>
         )}
+        {showReasons && (
+          <>
+            <span><span className="heatmap-marker-key">{REASON_MARKERS.wait.symbol}</span>{REASON_MARKERS.wait.label}</span>
+            <span><span className="heatmap-marker-key">{REASON_MARKERS.service.symbol}</span>{REASON_MARKERS.service.label}</span>
+          </>
+        )}
+      </div>
+
+      {/* Bemanningstips – genereras ur orsaks-lagret */}
+      <div className="staffing-tips">
+        <div className="staffing-tips-head">
+          <span className="staffing-tips-title">Bemanningstips</span>
+          <span className="staffing-tips-meta">
+            {totalWait} väntetid · {totalService} bemötande
+          </span>
+        </div>
+        {staffingTips.map((tip, i) => (
+          <div key={i} className={`staffing-tip staffing-tip--${tip.level}`}>
+            <span className="staffing-tip-icon">
+              {tip.level === 'action' ? '▲' : tip.level === 'watch' ? '►' : '✓'}
+            </span>
+            <span>{tip.text}</span>
+          </div>
+        ))}
+        <p className="staffing-tips-note">
+          Tipsen bygger på fördjupningssvar (skäl) som bara samlas in från en del av
+          kritikerna. Läs dem som «var ska vi titta närmare», inte som statistiskt facit.
+        </p>
       </div>
     </div>
   );
@@ -1011,7 +1162,7 @@ export default function ReportPage({ activeCustomer }) {
           />
           <div className="report-card">
             <h3>Veckoanalys – fysiska mätpunkter</h3>
-            <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar.</p>
+            <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar. Slå på «Visa orsaker» för väntetids- och bemötandesignaler samt bemanningstips.</p>
             <WeeklyHeatmap responses={npsResponses} touchpoints={touchpoints} />
           </div>
         </>
