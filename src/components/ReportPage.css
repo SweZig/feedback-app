@@ -258,6 +258,104 @@
   line-height: 1.4;
 }
 
+/* ── Drill-down-popup (Sprint A.11) ──────────────────────────────────────── */
+.heatmap-cell--clickable { cursor: pointer; transition: transform 0.08s ease; }
+.heatmap-cell--clickable:hover { transform: scale(1.05); }
+.heatmap-cell--clickable:focus-visible { outline: 2px solid #1e3a4f; outline-offset: 1px; }
+
+.drill-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 30, 40, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.drill-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  padding: 1.25rem 1.4rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.drill-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.drill-title { font-size: 0.95rem; font-weight: 600; color: #1e3a4f; }
+.drill-sub { font-size: 0.78rem; color: #7f8c8d; margin-top: 2px; }
+
+.drill-close {
+  border: none;
+  background: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: #bbb;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+.drill-close:hover { color: #7f8c8d; }
+
+.drill-span { display: flex; gap: 6px; margin: 0.75rem 0 0.25rem; }
+.drill-span-btn {
+  border: 1px solid #d7dde1;
+  background: transparent;
+  color: #7f8c8d;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.drill-span-btn--active { background: #1e3a4f; border-color: #1e3a4f; color: #fff; }
+
+.drill-stats { display: flex; gap: 10px; margin: 0.85rem 0; }
+.drill-stat { flex: 1; background: #f4f6f7; border-radius: 8px; padding: 8px 10px; }
+.drill-stat-label {
+  font-size: 0.62rem;
+  color: #95a5a6;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.drill-stat-value { font-size: 1.2rem; font-weight: 600; color: #1f2933; margin-top: 2px; }
+
+.drill-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 100px;
+  padding: 6px 2px 0;
+  border-top: 1px solid #eee;
+}
+.drill-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+.drill-bar-val { font-size: 0.5rem; color: #95a5a6; height: 11px; }
+.drill-bar { width: 62%; border-radius: 3px 3px 0 0; }
+.drill-bar-week { font-size: 0.5rem; color: #7f8c8d; }
+
+.drill-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.72rem;
+  color: #95a5a6;
+  font-style: italic;
+  line-height: 1.5;
+}
+
 /* Gauge */
 .gauge-block { display: flex; flex-direction: column; align-items: center; }
 .gauge-svg { width: 100%; max-width: 200px; }
