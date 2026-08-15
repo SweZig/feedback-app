@@ -72,6 +72,10 @@ function euclidean(a, b) {
   return Math.sqrt(sum);
 }
 
+// Sprint A.12: den grova indelningen ligger kvar för bakåtkompatibilitet —
+// historiken innehåller bara dessa fyra etiketter. Rapporten bucketar numera
+// på rawAge i stället (se DemographicsView.js), så ändra INTE gränserna här:
+// de definierar hur gamla svar rullas upp, inte hur nya visas.
 function toAgeGroup(age) {
   if (age < 13) return 'barn';
   if (age < 26) return 'ungdom';

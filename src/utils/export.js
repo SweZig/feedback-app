@@ -1,11 +1,30 @@
 import { categorize } from './npsCalculations';
 import { TYPE_LABELS, MODE_LABELS } from './settings';
+import { AGE_BUCKETS_8, bucketForResponse } from '../components/DemographicsView';
 
 const CATEGORY_LABELS = {
   detractor: 'Kritiker',
   passive: 'Passiv',
   promoter: 'Ambassadör',
 };
+
+// Sprint A.12: samma etiketter i exporten som i Demografi-fliken.
+// Bakåtkompatibla etiketter för historik som saknar raw_age.
+const LEGACY_AGE_LABELS = {
+  barn:   'Barn (<13)',
+  ungdom: 'Ungdom (13–25)',
+  vuxen:  'Vuxen (26–60)',
+  'äldre': 'Äldre (>60)',
+};
+
+const GENDER_LABELS = { man: 'Man', kvinna: 'Kvinna', 'okänt': 'Okänt' };
+
+function ageLabel(r) {
+  // Rapportens bucketning är källan — export och vy kan aldrig säga olika saker.
+  const b = bucketForResponse(r, AGE_BUCKETS_8);
+  if (b) return b.label;
+  return LEGACY_AGE_LABELS[r.ageGroup] || '';
+}
 
 function buildMaps(chains) {
   const chainMap = {};
@@ -40,6 +59,13 @@ function buildRows(responses, chains) {
       Svarsalternativ: r.predefinedAnswer || '',
       Kommentar: r.comment || '',
       Uppföljning: r.followUpEmail || '',
+      // Sprint A.12 — demografi. Saknad data exporteras som tom sträng;
+      // 'Okänt' är ett riktigt värde från modellen och ska inte blandas ihop
+      // med att uppgiften saknas helt.
+      Åldersgrupp: ageLabel(r),
+      'Ålder (est.)': Number.isFinite(r.rawAge) ? r.rawAge : '',
+      Kön: GENDER_LABELS[r.gender] || '',
+      Ansiktskonfidens: Number.isFinite(r.faceConfidence) ? r.faceConfidence : '',
     };
   });
 }

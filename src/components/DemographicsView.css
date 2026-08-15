@@ -1,0 +1,322 @@
+/* ── Demografi-vy (Sprint A.12) ─────────────────────────────────────────────
+   Bygger vidare på ReportPage.css. Alla basfärger kommer ur App.css; de enda
+   tillskotten är kategorifärgerna för kön (#3498db / #8e44ad / #95a5a6) som
+   inte får krocka med NPS-statusfärgerna, samt volymrampen som är en ton av
+   --color-primary mot vitt. */
+
+.dv-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .dv-grid2 { grid-template-columns: 1fr; }
+}
+
+/* ── Kontrollrad ─────────────────────────────────────────────────────────── */
+.dv-controls {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: 0.9rem 1.1rem;
+}
+
+.dv-control { display: flex; flex-direction: column; gap: 0.3rem; }
+.dv-control--end { margin-left: auto; }
+
+.dv-control-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-light);
+}
+
+.dv-segbtns { display: flex; gap: 0.4rem; }
+
+.dv-control-hint {
+  font-size: 0.72rem;
+  color: #95a5a6;
+  font-style: italic;
+  margin-top: 0.15rem;
+  max-width: 330px;
+  line-height: 1.4;
+}
+
+/* ── Persona ─────────────────────────────────────────────────────────────── */
+.dv-persona { display: flex; gap: 1rem; align-items: center; }
+
+.dv-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: #f4f6f7;
+}
+
+.dv-persona-name { font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: var(--color-text); }
+.dv-persona-sub { font-size: 0.8rem; color: var(--color-text-light); margin-top: 0.15rem; }
+.dv-stat-note { font-size: 0.7rem; color: var(--color-text-light); margin-top: 1px; }
+
+.dv-flag {
+  background: #fdecea;
+  color: #922b21;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0.9rem 0 0;
+}
+
+/* ── Rangordningsrader (bygger på .demo-row) ─────────────────────────────── */
+.dv-rank {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #f4f6f7;
+  color: var(--color-text-light);
+  display: grid;
+  place-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex: none;
+}
+
+.demo-row .demo-row-pct,
+.demo-row .demo-row-count { font-variant-numeric: tabular-nums; }
+
+.dv-row--thin .demo-row-label { color: #95a5a6; }
+
+/* ── Matris ──────────────────────────────────────────────────────────────── */
+.dv-matrix-wrap { overflow-x: auto; }
+
+.dv-matrix {
+  border-collapse: separate;
+  border-spacing: 2px;
+  width: 100%;
+  min-width: 520px;
+}
+
+.dv-matrix th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-light);
+  padding: 0.25rem 0.35rem;
+  white-space: nowrap;
+}
+
+.dv-matrix th.dv-rowh {
+  text-align: right;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.dv-matrix th.dv-rowh .heatmap-dot { margin-right: 6px; }
+.dv-matrix td { padding: 0; }
+
+.dv-cell {
+  height: 44px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.dv-cell small {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* Tunt underlag: snedstreck ovanpå fyllningen, samma signal som i mockupen */
+.dv-cell--thin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(127, 140, 141, 0.45) 5px 6px);
+}
+
+.dv-ramp { display: inline-flex; gap: 2px; margin: 0 6px; vertical-align: middle; }
+.dv-ramp i { width: 18px; height: 10px; border-radius: 2px; display: block; }
+
+.dv-thin-key {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  background: repeating-linear-gradient(135deg, #fff 0 4px, #c9d0d3 4px 5px);
+}
+
+/* ── Täckningsgrad ───────────────────────────────────────────────────────── */
+.dv-cov-head {
+  display: grid;
+  grid-template-columns: 230px 1fr 130px;
+  gap: 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-light);
+  margin-bottom: 0.45rem;
+}
+
+.dv-cov-head span:last-child { text-align: right; }
+
+.dv-cov-row {
+  display: grid;
+  grid-template-columns: 230px 1fr 130px;
+  gap: 0.7rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 700px) {
+  .dv-cov-head { display: none; }
+  .dv-cov-row { grid-template-columns: 1fr 90px; }
+  .dv-cov-row .dv-cov-track { grid-column: 1 / -1; }
+}
+
+.dv-cov-name { display: flex; align-items: baseline; min-width: 0; }
+.dv-cov-name--sum { font-weight: 700; }
+
+.dv-cov-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Avdelningens unika kod, samma diskreta form som i mätpunktskorten */
+.dv-cov-code {
+  font-size: 0.7rem;
+  color: var(--color-text-light);
+  margin-left: 0.35rem;
+}
+
+/* Mätpunktsnamnet under avdelningen — det som ofta är "Exitpoll" på alla */
+.dv-cov-sub {
+  font-size: 0.72rem;
+  color: var(--color-text-light);
+  margin-left: 0.4rem;
+}
+.dv-cov-sub::before { content: "· "; }
+
+.dv-cov-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.dv-cov-track { height: 10px; border-radius: 4px; background: #f0f0f0; overflow: hidden; }
+.dv-cov-track i { display: block; height: 100%; border-radius: 4px; }
+
+.dv-cov-val {
+  text-align: right;
+  color: var(--color-text-light);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+/* Antalen är huvudsaken, procenten är sammanfattningen av dem */
+.dv-cov-count { color: var(--color-text); font-weight: 600; }
+.dv-cov-pct { font-size: 0.75rem; }
+
+/* ── Jämför mätpunkter ───────────────────────────────────────────────────── */
+.dv-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.dv-store-name { font-size: 0.9rem; font-weight: 700; color: var(--color-text); }
+.dv-store-sub { font-size: 0.72rem; color: var(--color-text-light); margin: 0.1rem 0 0.7rem; }
+
+.dv-pyr-head {
+  display: grid;
+  grid-template-columns: 1fr 92px 1fr;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-light);
+  margin-bottom: 0.4rem;
+}
+
+.dv-pyr-head span:first-child { text-align: right; }
+
+.dv-pyr-row {
+  display: grid;
+  grid-template-columns: 1fr 92px 1fr;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.dv-pyr-l { display: flex; justify-content: flex-end; height: 18px; align-items: center; }
+.dv-pyr-r { display: flex; height: 18px; align-items: center; }
+.dv-pyr-bar { height: 14px; border-radius: 4px; min-width: 0; }
+.dv-pyr-l .dv-pyr-bar { border-radius: 4px 0 0 4px; }
+.dv-pyr-r .dv-pyr-bar { border-radius: 0 4px 4px 0; }
+
+.dv-pyr-lab {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--color-text-light);
+  white-space: nowrap;
+}
+
+.dv-dev-row {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.dv-dev-lab {
+  font-size: 0.7rem;
+  color: var(--color-text-light);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dv-dev-track { position: relative; height: 16px; }
+
+.dv-dev-zero {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.dv-dev-bar {
+  position: absolute;
+  top: 2px;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--color-primary);
+}
+
+.dv-muted { color: #95a5a6; }

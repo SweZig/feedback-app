@@ -1,0 +1,132 @@
+/* src/components/CameraCoverage.css
+ * Inställningar → Kameratäckning (Sprint A.12)
+ * Intern driftvy. Följer SettingsPage-kortens formspråk. */
+
+.cc-periods {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.cc-error {
+  background: #fdecea;
+  color: #922b21;
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  margin: 0 0 1rem;
+}
+
+/* ── Sammanfattning ──────────────────────────────────────────────────────── */
+.cc-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.cc-stat {
+  background: #f4f6f7;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cc-stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #95a5a6;
+}
+
+.cc-stat-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1f2933;
+}
+
+.cc-stat-value small {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--color-text-light);
+  margin-left: 0.4rem;
+}
+
+/* ── Tabell ──────────────────────────────────────────────────────────────── */
+.cc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.cc-table th {
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-light);
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.cc-table td {
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid #f0f2f4;
+  vertical-align: middle;
+}
+
+.cc-table .num,
+.cc-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.cc-table tbody tr:hover { background: #fafbfc; }
+
+.cc-row--idle td { color: #95a5a6; }
+
+.cc-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: baseline;
+}
+
+.cc-code {
+  font-size: 0.7rem;
+  color: var(--color-text-light);
+  margin-left: 0.4rem;
+}
+
+.cc-tp { color: var(--color-text-light); }
+
+/* Täckningskolumnen: stapel + text under, så siffran aldrig står ensam */
+.cc-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #f0f0f0;
+  overflow: hidden;
+  margin-bottom: 3px;
+  min-width: 70px;
+}
+
+.cc-bar i { display: block; height: 100%; border-radius: 3px; }
+
+.cc-pct {
+  font-size: 0.72rem;
+  color: var(--color-text-light);
+  white-space: nowrap;
+}
+
+.cc-never { color: #922b21; }
+.cc-muted { color: #95a5a6; }
+
+.cc-note {
+  margin: 1rem 0 0;
+  font-size: 0.75rem;
+  color: #95a5a6;
+  font-style: italic;
+  line-height: 1.6;
+}

@@ -28,6 +28,7 @@ export const PERMISSION_GROUPS = [
       { key: 'view_overview',    label: 'Se Översikt' },
       { key: 'view_weekly',      label: 'Se Veckoanalys' },
       { key: 'view_touchpoints', label: 'Se Mätpunkter-tab' },
+      { key: 'view_demographics', label: 'Se Demografi (Beta)' },
       { key: 'filter_report',    label: 'Filtrera rapport' },
       { key: 'export_csv',       label: 'Exportera CSV' },
       { key: 'export_excel',     label: 'Exportera Excel' },
@@ -76,6 +77,10 @@ export const DEFAULT_PERMISSIONS = {
   view_overview:     { owner: true,  admin: true,  manager: true,  analytiker: true  },
   view_weekly:       { owner: true,  admin: true,  manager: true,  analytiker: true  },
   view_touchpoints:  { owner: true,  admin: true,  manager: true,  analytiker: true  },
+  // Sprint A.12: Demografi är avsiktligt begränsad till owner/admin tills
+  // kamerorna är intrimmade. Med låg täckning drar en kund lätt fel slutsatser.
+  // Öppna för fler roller här — eller per organisation i Inställningar.
+  view_demographics: { owner: true,  admin: true,  manager: false, analytiker: false },
   filter_report:     { owner: true,  admin: true,  manager: true,  analytiker: true  },
   export_csv:        { owner: true,  admin: true,  manager: true,  analytiker: true  },
   export_excel:      { owner: true,  admin: true,  manager: true,  analytiker: true  },
