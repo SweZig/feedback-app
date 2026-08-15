@@ -27,8 +27,34 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   margin-bottom: 0.4rem;
 }
+
+/* Sprint A.13 — varifrån svaret kommer. margin-right:auto håller etiketten
+   intill betyget och trycker datumet till höger. */
+.comment-origin {
+  margin-right: auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  background: rgba(30, 58, 79, 0.07);
+  border-radius: 20px;
+  padding: 0.15rem 0.6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+/* Mätpunkten heter ofta samma sak överallt — sekundär till avdelningen */
+.comment-origin-tp {
+  font-weight: 400;
+  color: var(--color-text-light);
+  margin-left: 0.35rem;
+}
+
+.comment-origin-tp::before { content: "· "; }
 
 .comment-badge {
   display: inline-flex;

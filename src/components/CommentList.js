@@ -80,9 +80,42 @@ function PredefinedGroup({ responses }) {
   );
 }
 
+// ── Avdelningsetikett (Sprint A.13) ──
+// Ett svar bär bara touchpointId. För att slippa leta upp avdelningen manuellt
+// när en kund vill bli kontaktad visas den direkt på kommentaren.
+function OriginTag({ origin }) {
+  if (!origin) return null;
+  return (
+    <span className="comment-origin" title={origin.title}>
+      {origin.dept}
+      {origin.tp && <span className="comment-origin-tp">{origin.tp}</span>}
+    </span>
+  );
+}
+
 // ── Huvud-komponent ──
-function CommentList({ responses }) {
+function CommentList({ responses, touchpoints = [], departments = [] }) {
   const [resolved, setResolved] = useState(() => loadResolved());
+
+  // Slår upp avdelning + mätpunkt för ett svar. Mätpunktsnamnen är ofta
+  // identiska mellan avdelningar ("Exitpoll"), så avdelningen är huvudetiketten.
+  const tpById = {};
+  touchpoints.forEach(t => { tpById[t.id] = t; });
+  const deptById = {};
+  departments.forEach(d => { deptById[d.id] = d; });
+
+  function originOf(r) {
+    const tp = r.touchpointId ? tpById[r.touchpointId] : null;
+    if (!tp) return null;
+    const dept = tp.departmentId ? deptById[tp.departmentId] : null;
+    return {
+      dept: dept ? dept.name : tp.name,
+      tp: dept ? tp.name : '',
+      title: dept
+        ? `${dept.name}${dept.uniqueCode ? ` (${dept.uniqueCode})` : ''} · ${tp.name}`
+        : tp.name,
+    };
+  }
 
   useEffect(() => { saveResolved(resolved); }, [resolved]);
 
@@ -127,6 +160,7 @@ function CommentList({ responses }) {
                 <li key={r.id} className={`comment-item comment-item--followup ${isResolved ? 'comment-item--resolved' : ''}`}>
                   <div className="comment-header">
                     <span className={`comment-badge comment-badge--${categorize(r.score)}`}>{r.score}</span>
+                    <OriginTag origin={originOf(r)} />
                     <span className="comment-date">{new Date(r.timestamp).toLocaleDateString('sv-SE')}</span>
                   </div>
                   <div className="comment-followup">
@@ -166,6 +200,7 @@ function CommentList({ responses }) {
               <li key={r.id} className="comment-item">
                 <div className="comment-header">
                   <span className={`comment-badge comment-badge--${categorize(r.score)}`}>{r.score}</span>
+                  <OriginTag origin={originOf(r)} />
                   <span className="comment-date">{new Date(r.timestamp).toLocaleDateString('sv-SE')}</span>
                 </div>
                 {r.predefinedAnswer && (

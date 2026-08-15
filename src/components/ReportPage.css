@@ -96,6 +96,13 @@
 .report-empty { text-align: center; color: var(--color-text-light); padding: 3rem 1.5rem; }
 .report-empty-text { color: var(--color-text-light); font-style: italic; margin: 0; font-size: 0.9rem; }
 
+/* Sprint A.13 — avdelningsfiltret sitter numera intill heatmapen i stället för
+   högst upp i vyn. Marginalen nedåt håller ihop det med matrisen det styr. */
+.heatmap-dept-filter {
+  margin-bottom: 0.9rem;
+  max-width: 420px;
+}
+
 /* Heatmap */
 .heatmap-wrap { overflow-x: auto; }
 

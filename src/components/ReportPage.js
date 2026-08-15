@@ -1108,7 +1108,30 @@ export default function ReportPage({ activeCustomer }) {
 
   // Filterdropdownen visas på Översikt, Veckoanalys och Trend (men inte på
   // Mätpunkter — där är hela poängen att se alla mätpunkter parallellt).
-  const showDeptFilter = hasDepts && (activeView === 'overview' || activeView === 'weekly' || activeView === 'trend');
+  // Sprint A.13: i Veckoanalys ligger filtret inte längre här uppe utan direkt
+  // ovanför heatmapen — det är där man faktiskt byter avdelning, och avståndet
+  // dit gjorde att man tappade bort vilket urval man tittade på.
+  const showDeptFilter = hasDepts && (activeView === 'overview' || activeView === 'trend');
+
+  const deptFilterSelect = hasDepts ? (
+    <select className="report-dept-select" value={selectValue}
+      onChange={(e) => { setFilterMode(e.target.value || 'all'); }}
+    >
+      <option value="">— Filtrera på avdelning eller mätpunkt —</option>
+      {departments.map((dept) => {
+        const deptTps = touchpoints.filter((t) => t.departmentId === dept.id).sort((a, b) => a.order - b.order);
+        if (!deptTps.length) return null;
+        return (
+          <optgroup key={dept.id} label={`${dept.name}${dept.uniqueCode ? ` (${dept.uniqueCode})` : ''}`}>
+            <option value={`dept:${dept.id}`}>Hela {dept.name}</option>
+            {deptTps.map((tp) => (
+              <option key={tp.id} value={`tp:${tp.id}`}>{'  '}{tp.name}</option>
+            ))}
+          </optgroup>
+        );
+      })}
+    </select>
+  ) : null;
 
   return (
     <div className="report">
@@ -1151,27 +1174,10 @@ export default function ReportPage({ activeCustomer }) {
         )}
       </div>
 
-      {/* Filter på avdelning / mätpunkt — visas för Översikt och Veckoanalys */}
+      {/* Filter på avdelning / mätpunkt — Översikt och Trend.
+         Veckoanalys har sitt eget filter direkt ovanför heatmapen. */}
       {showDeptFilter && (
-        <div className="report-card">
-          <select className="report-dept-select" value={selectValue}
-            onChange={(e) => { setFilterMode(e.target.value || 'all'); }}
-          >
-            <option value="">— Filtrera på avdelning eller mätpunkt —</option>
-            {departments.map((dept) => {
-              const deptTps = touchpoints.filter((t) => t.departmentId === dept.id).sort((a, b) => a.order - b.order);
-              if (!deptTps.length) return null;
-              return (
-                <optgroup key={dept.id} label={`${dept.name}${dept.uniqueCode ? ` (${dept.uniqueCode})` : ''}`}>
-                  <option value={`dept:${dept.id}`}>Hela {dept.name}</option>
-                  {deptTps.map((tp) => (
-                    <option key={tp.id} value={`tp:${tp.id}`}>{'\u00a0\u00a0'}{tp.name}</option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
-        </div>
+        <div className="report-card">{deptFilterSelect}</div>
       )}
 
       <div className="report-filters">
@@ -1211,6 +1217,10 @@ export default function ReportPage({ activeCustomer }) {
           <div className="report-card">
             <h3>Veckoanalys – fysiska mätpunkter</h3>
             <p className="report-card-desc">NPS-poäng per veckodag och tid. Siffrorna visar NPS och antal svar. Slå på «Visa orsaker» för väntetids- och bemötandesignaler samt bemanningstips.</p>
+            {/* Sprint A.13: filtret sitter här, intill heatmapen det styr */}
+            {deptFilterSelect && (
+              <div className="heatmap-dept-filter">{deptFilterSelect}</div>
+            )}
             <WeeklyHeatmap responses={npsResponses} touchpoints={touchpoints} />
           </div>
         </>
@@ -1387,7 +1397,11 @@ export default function ReportPage({ activeCustomer }) {
                     Fokusera enbart på förbättringsåtgärder
                   </span>
                 </div>
-                <CommentList responses={commentResponses} />
+                <CommentList
+                  responses={commentResponses}
+                  touchpoints={touchpoints}
+                  departments={departments}
+                />
               </div>
 
               <div className="report-export">
