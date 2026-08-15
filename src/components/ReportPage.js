@@ -4,6 +4,8 @@ import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
 import { TYPE_LABELS } from '../utils/settings';
 import CommentList from './CommentList';
+import DemographicsView from './DemographicsView';
+import { useRole } from '../contexts/RoleContext';
 import './ReportPage.css';
 
 // Tidsfilter använder en `key` istället för rakt antal dagar, eftersom
@@ -923,144 +925,10 @@ function TouchpointsView({ touchpoints, departments, allResponses, periodLabel }
 }
 
 
-// ── Demografi Beta ─────────────────────────────────────────────────────────────
-function DemographicsCard({ responses, duplicateCount }) {
-  const [selectedGender, setSelectedGender] = useState(null);
-
-  const withDemo = responses.filter(r => r.ageGroup || r.gender);
-  const total = withDemo.length;
-  const overallTotal = responses.length;
-  const coveragePct = overallTotal > 0
-    ? ((total / overallTotal) * 100).toFixed(1).replace('.', ',')
-    : '0,0';
-
-  if (total === 0) {
-    return (
-      <div className="report-card demo-card">
-        <div className="demo-header">
-          <h3>Demografi <span className="demo-beta-badge">Beta</span></h3>
-        </div>
-        <p className="report-empty-text">Inga demografidata ännu — kräver kamera på kiosk-enheter.</p>
-      </div>
-    );
-  }
-
-  // Åldersgrupperna filtreras på valt kön om något är valt
-  const ageGroupSource = selectedGender
-    ? withDemo.filter(r => r.gender === selectedGender)
-    : withDemo;
-  const ageTotal = ageGroupSource.length;
-
-  function groupStats(source, sourceTotal, key, groups) {
-    return groups.map(g => {
-      const group = source.filter(r => r[key] === g.value);
-      const npsResult = calculateNps(group);
-      return {
-        value: g.value,
-        label: g.label,
-        count: group.length,
-        pct: sourceTotal > 0 ? Math.round((group.length / sourceTotal) * 100) : 0,
-        nps: npsResult?.nps ?? null,
-      };
-    }).filter(g => g.count > 0);
-  }
-
-  const genderGroups = groupStats(withDemo, total, 'gender', [
-    { value: 'man',    label: 'Man' },
-    { value: 'kvinna', label: 'Kvinna' },
-    { value: 'okänt',  label: 'Okänt kön' },
-  ]);
-
-  const ageGroups = groupStats(ageGroupSource, ageTotal, 'ageGroup', [
-    { value: 'barn',   label: 'Barn (<13)' },
-    { value: 'ungdom', label: 'Ungdom (13–25)' },
-    { value: 'vuxen',  label: 'Vuxen (26–60)' },
-    { value: 'äldre',  label: 'Äldre (>60)' },
-  ]);
-
-  const selectedGenderLabel = genderGroups.find(g => g.value === selectedGender)?.label;
-
-  function NpsChip({ nps }) {
-    if (nps === null) return null;
-    const color = nps >= 30 ? '#27ae60' : nps >= 0 ? '#f39c12' : '#e74c3c';
-    return <span className="demo-nps-chip" style={{ background: color }}>{nps >= 0 ? '+' : ''}{nps}</span>;
-  }
-
-  function DemoGroup({ title, groups, onSelect, activeValue, hint }) {
-    const clickable = !!onSelect;
-    return (
-      <div className="demo-group">
-        <h4 className="demo-group-title">
-          {title}
-          {hint && <span className="demo-group-hint">{hint}</span>}
-        </h4>
-        {groups.map(g => {
-          const isActive = activeValue === g.value;
-          return (
-            <div
-              key={g.label}
-              className={
-                'demo-row' +
-                (clickable ? ' demo-row--clickable' : '') +
-                (isActive  ? ' demo-row--active'    : '')
-              }
-              onClick={clickable ? () => onSelect(isActive ? null : g.value) : undefined}
-              role={clickable ? 'button' : undefined}
-              tabIndex={clickable ? 0 : undefined}
-              onKeyDown={clickable ? (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelect(isActive ? null : g.value);
-                }
-              } : undefined}
-              title={
-                clickable
-                  ? (isActive ? 'Klicka för att rensa filter' : `Filtrera åldersgrupp på ${g.label}`)
-                  : undefined
-              }
-            >
-              <span className="demo-row-label">{g.label}</span>
-              <div className="demo-bar-wrap">
-                <div className="demo-bar" style={{ width: `${g.pct}%` }} />
-              </div>
-              <span className="demo-row-pct">{g.pct}%</span>
-              <span className="demo-row-count">{g.count} sv</span>
-              <NpsChip nps={g.nps} />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div className="report-card demo-card">
-      <div className="demo-header">
-        <h3>Demografi <span className="demo-beta-badge">Beta</span></h3>
-        <span className="demo-coverage">
-          {total} av {overallTotal} svar med demografidata ({coveragePct}%)
-        </span>
-      </div>
-      {duplicateCount > 0 && (
-        <p className="demo-duplicate-info">ℹ️ {duplicateCount} dubblettsvar filtrerade från NPS-beräkningar.</p>
-      )}
-      <div className="demo-groups">
-        <DemoGroup
-          title="Kön"
-          groups={genderGroups}
-          onSelect={setSelectedGender}
-          activeValue={selectedGender}
-          hint={selectedGender ? ' — klicka igen för att rensa' : ' — klicka för att filtrera ålder'}
-        />
-        <DemoGroup
-          title="Åldersgrupp"
-          groups={ageGroups}
-          hint={selectedGenderLabel ? ` — filtrerat på ${selectedGenderLabel} (${ageTotal} svar)` : null}
-        />
-      </div>
-    </div>
-  );
-}
+// ── Demografi ──────────────────────────────────────────────────────────────
+// Sprint A.12: DemographicsCard är borttagen härifrån. Vyn bor nu i
+// DemographicsView.js som egen rapportflik, med bucketning på raw_age,
+// täckningsgrad per mätpunkt och jämförelseläge mellan mätpunkter.
 
 export default function ReportPage({ activeCustomer }) {
   const [filterKey, setFilterKey] = useState('all');
@@ -1068,14 +936,17 @@ export default function ReportPage({ activeCustomer }) {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [filterMode, setFilterMode] = useState('all');
-  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly' | 'trend' | 'touchpoints'
+  // Sprint A.12: 'demographics' tillkommer som egen vy och ersätter
+  // Demografi Beta-kortet som tidigare låg inne i Översikt.
+  const [activeView, setActiveView] = useState('overview'); // 'overview' | 'weekly' | 'trend' | 'demographics' | 'touchpoints'
   const [focusImprovements, setFocusImprovements] = useState(false);
-  const [showDemographics, setShowDemographics] = useState(() => {
-    try { return localStorage.getItem('report_show_demographics') === 'true'; } catch { return false; }
-  });
   const [supabaseResponses, setSupabaseResponses] = useState(undefined);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Sprint A.12: Demografi är rollstyrd tills kamerorna är intrimmade.
+  const { can } = useRole();
+  const canSeeDemographics = can('view_demographics');
 
   const customerId = activeCustomer?.id || null;
 
@@ -1110,6 +981,9 @@ export default function ReportPage({ activeCustomer }) {
           nps_category:     r.nps_category,
           ageGroup:         r.age_group   || null,
           gender:           r.gender      || null,
+          // Sprint A.12: rå ålder + detektionskonfidens. NULL på historik.
+          rawAge:           typeof r.raw_age === 'number' ? r.raw_age : null,
+          faceConfidence:   typeof r.face_confidence === 'number' ? r.face_confidence : null,
           isDuplicate:      r.is_duplicate || false,
         }));
         setSupabaseResponses(formatted);
@@ -1240,6 +1114,12 @@ export default function ReportPage({ activeCustomer }) {
     <div className="report">
       {activeCustomer && <h2 className="report-title">Rapport: {activeCustomer.name}</h2>}
 
+      {/* Sprint A.12 — urvalsförbehåll. Rapporten bygger på självselekterade
+         svarare; det ska stå i vyn och inte bara i specen. */}
+      <p className="report-sample-note">
+        ℹ️ Rapporten bygger på de kunder som valt att lämna feedback — inte på alla besökare.
+      </p>
+
       {/* View toggle */}
       <div className="report-view-tabs">
         <button
@@ -1256,6 +1136,13 @@ export default function ReportPage({ activeCustomer }) {
           className={`report-view-tab ${activeView === 'trend' ? 'report-view-tab--active' : ''}`}
           onClick={() => setActiveView('trend')}
         >Trend</button>
+        {/* Sprint A.12 — Demografi som egen vy, Beta och rollstyrd */}
+        {canSeeDemographics && (
+          <button
+            className={`report-view-tab ${activeView === 'demographics' ? 'report-view-tab--active' : ''}`}
+            onClick={() => setActiveView('demographics')}
+          >Demografi <span className="demo-beta-badge">Beta</span></button>
+        )}
         {touchpoints.length > 0 && (
           <button
             className={`report-view-tab ${activeView === 'touchpoints' ? 'report-view-tab--active' : ''}`}
@@ -1344,6 +1231,20 @@ export default function ReportPage({ activeCustomer }) {
         </>
       )}
 
+      {/* ===== DEMOGRAFI VIEW (Sprint A.12) =====
+         responses  = tp-filtrerat + dubblettrensat, följer filterraden.
+         allResponses = datumfiltrerat men INTE tp-filtrerat — behövs för
+         «Jämför mätpunkter», där hela poängen är att se alla parallellt. */}
+      {activeView === 'demographics' && canSeeDemographics && (
+        <DemographicsView
+          responses={npsResponses}
+          allResponses={allResponses}
+          touchpoints={touchpoints}
+          departments={departments}
+          periodLabel={periodLabel}
+        />
+      )}
+
       {/* ===== MÄTPUNKTER VIEW ===== */}
       {activeView === 'touchpoints' && (
         <TouchpointsView
@@ -1379,24 +1280,12 @@ export default function ReportPage({ activeCustomer }) {
                 </div>
               </div>
 
-              {/* Demografi Beta */}
-              <div className="report-card" style={{padding:'0.75rem 1rem 0.5rem'}}>
-                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                  <span style={{fontSize:'0.9rem',fontWeight:600,color:'var(--color-text)'}}>
-                    Demografi <span className="demo-beta-badge">Beta</span>
-                  </span>
-                  <button
-                    className={`setting-switch ${showDemographics ? 'setting-switch--on' : ''}`}
-                    onClick={() => {
-                      const next = !showDemographics;
-                      setShowDemographics(next);
-                      try { localStorage.setItem('report_show_demographics', next); } catch {}
-                    }}
-                  ><span className="setting-switch-knob" /></button>
-                </div>
-              </div>
-              {showDemographics && (
-                <DemographicsCard responses={npsResponses} duplicateCount={duplicateCount} />
+              {/* Sprint A.12: Demografi Beta-kortet är flyttat till egen flik.
+                 Kvar här är bara dubblettnotisen, som hör till hela Översikt. */}
+              {duplicateCount > 0 && (
+                <p className="demo-duplicate-info">
+                  ℹ️ {duplicateCount} dubblettsvar filtrerade från NPS-beräkningar.
+                </p>
               )}
 
               {/* Per type */}

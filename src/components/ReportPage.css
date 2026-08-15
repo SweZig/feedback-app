@@ -9,6 +9,14 @@
   font-size: 1.2rem;
 }
 
+/* Sprint A.12 — urvalsförbehåll överst i rapporten. Samma diskreta form som
+   .demo-duplicate-info, så den läses som en upplysning och inte som ett fel. */
+.report-sample-note {
+  font-size: 0.82rem;
+  color: var(--color-text-light);
+  margin: -0.5rem 0 0;
+}
+
 /* View tabs */
 .report-view-tabs {
   display: flex;

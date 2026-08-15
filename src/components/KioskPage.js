@@ -114,6 +114,8 @@ async function saveKioskResponse({
   followUpEmail,
   ageGroup,    // 'barn' | 'ungdom' | 'vuxen' | 'äldre' | null
   gender,      // 'man' | 'kvinna' | 'okänt' | null
+  rawAge,      // Sprint A.12: avrundad åldersskattning, number | null
+  confidence,  // Sprint A.12: detektionens score 0-1, number | null
   isDuplicate, // boolean
   respondedAt, // ISO-string
 }) {
@@ -140,6 +142,11 @@ async function saveKioskResponse({
       metadata,
       age_group:     ageGroup     || null,
       gender:        gender       || null,
+      // Sprint A.12: bucketningen görs numera i rapportlagret, så den råa
+      // åldersskattningen och konfidensen måste sparas. age_group ligger kvar
+      // för bakåtkompatibilitet med historiken.
+      raw_age:         Number.isFinite(rawAge)     ? Math.round(rawAge) : null,
+      face_confidence: Number.isFinite(confidence) ? confidence         : null,
       is_duplicate:  isDuplicate  || false,
     })
     .select()
@@ -565,6 +572,8 @@ export default function KioskPage({ accessToken }) {
       followUpEmail:  email || '',
       ageGroup:       face?.ageGroup || null,
       gender:         face?.gender || null,
+      rawAge:         face?.rawAge ?? null,
+      confidence:     face?.confidence ?? null,
       isDuplicate:    face?.isDuplicate || false,
       respondedAt:    new Date().toISOString(),
     };
@@ -646,6 +655,8 @@ export default function KioskPage({ accessToken }) {
       const data = faceResult ? {
         ageGroup:    faceResult.ageGroup,
         gender:      faceResult.gender,
+        rawAge:      faceResult.rawAge,
+        confidence:  faceResult.confidence,
         isDuplicate: faceResult.isDuplicate,
       } : null;
       // Sprint A.8.1: spara i BÅDE ref och state. Ref-en läses synkront av

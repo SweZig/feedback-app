@@ -36,6 +36,8 @@ import { useRole } from '../contexts/RoleContext';
 import './SettingsPage.css';
 import './SettingsPage.driftstatus.css';
 import './AdminPage.css';
+// Sprint A.12 — intern driftvy för kameratäckning
+import CameraCoverage from './CameraCoverage';
 
 // Sprint A.5 Del 2: pollar driftstatus var 30s i Avdelningar-vyn
 const DRIFTSTATUS_POLL_MS = 30 * 1000;
@@ -64,6 +66,8 @@ const MENU_ITEMS = [
   { key: 'users', label: 'Användare' },
   { key: 'departments', label: 'Avdelningar' },
   { key: 'config', label: 'Konfiguration' },
+  // Sprint A.12 — intern driftvy för kameratäckning, inte kundvänd
+  { key: 'coverage', label: 'Kameratäckning' },
 ];
 
 
@@ -1437,6 +1441,10 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
         )}
 
         {section === 'users' && <UsersSection chain={active} />}
+
+        {/* Sprint A.12 — Kameratäckning. Ligger under Inställningar och inte i
+           rapporten, eftersom nedbrytningen per platta är driftdata. */}
+        {section === 'coverage' && <CameraCoverage chain={active} />}
 
         {section === 'departments' && (
           <div className="settings-card">
