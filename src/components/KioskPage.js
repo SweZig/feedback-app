@@ -271,7 +271,13 @@ export default function KioskPage({ accessToken }) {
   useEffect(() => { stepRef.current = step; }, [step]);
 
   // ── Kamera + ansiktsanalys ──
-  const { videoRef, captureAnalysis } = useFaceCamera();
+  const { videoRef, captureAnalysis, getDiagnostics } = useFaceCamera();
+
+  // Sprint A.14: heartbeat-effekten startas om bara när kioskData ändras, men
+  // getDiagnostics är en ny funktion varje render. Refen håller den färsk utan
+  // att riva ner och återstarta pulsen vid varje omrendering.
+  const getDiagnosticsRef = useRef(getDiagnostics);
+  getDiagnosticsRef.current = getDiagnostics;
 
   // Diagnostik (tillfälligt): logga video-element-state efter mount och var 5:e sek
   useEffect(() => {
@@ -370,7 +376,9 @@ export default function KioskPage({ accessToken }) {
     if (!kioskData?.tp?.id) return;
     if (kioskData.tp.type !== 'physical') return;
 
-    const controller = startHeartbeat(kioskData.tp.id);
+    // Sprint A.14: heartbeaten bär med kamerans hälsa. getDiagnosticsRef läses
+    // vid varje puls, så statusen är färsk även om hooken remountats.
+    const controller = startHeartbeat(kioskData.tp.id, () => getDiagnosticsRef.current?.());
     heartbeatRef.current = controller;
 
     return () => {

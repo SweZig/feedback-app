@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { isDemographicallyUsable } from './DemographicsView';
+import { getKioskStatuses, describeCamera } from '../utils/kioskHeartbeat';
 import './CameraCoverage.css';
 
 /**
@@ -46,6 +47,8 @@ export default function CameraCoverage({ chain }) {
   const [period, setPeriod]     = useState('90d');
   const [rows, setRows]         = useState(undefined);
   const [error, setError]       = useState('');
+  // Sprint A.14 — kamerans självrapporterade hälsa per platta
+  const [health, setHealth]     = useState(() => new Map());
 
   const chainId = chain?.id || null;
 
@@ -76,6 +79,19 @@ export default function CameraCoverage({ chain }) {
 
     return () => { cancelled = true; };
   }, [chainId]);
+
+  // Heartbeat-diagnostiken hämtas separat: den beskriver plattans NUVARANDE
+  // tillstånd, medan täckningen ovan är historik. De besvarar olika frågor —
+  // "fungerar kameran nu" respektive "har den fungerat".
+  useEffect(() => {
+    const ids = (chain?.touchpoints || [])
+      .filter(t => t.type === 'physical')
+      .map(t => t.id);
+    if (!ids.length) { setHealth(new Map()); return; }
+    let cancelled = false;
+    getKioskStatuses(ids).then((m) => { if (!cancelled) setHealth(m); });
+    return () => { cancelled = true; };
+  }, [chain]);
 
   if (!chainId) {
     return <div className="settings-card"><h2>Kameratäckning</h2>
@@ -198,6 +214,7 @@ export default function CameraCoverage({ chain }) {
               <th className="num">Identifierade</th>
               <th className="num">Täckning</th>
               <th>Senaste träff</th>
+              <th>Kamerastatus</th>
             </tr>
           </thead>
           <tbody>
@@ -223,6 +240,21 @@ export default function CameraCoverage({ chain }) {
                       : r.demo === 0
                         ? <span>aldrig — svar {lastSeenLabel(r.lastAny)}</span>
                         : lastSeenLabel(r.lastDemo)}
+                  </td>
+                  <td>
+                    {(() => {
+                      const cam = describeCamera(health.get(r.id));
+                      if (!cam) return <span className="cc-muted">rapporterar inte än</span>;
+                      return (
+                        <span
+                          className={cam.ok ? 'cc-cam cc-cam--ok' : 'cc-cam cc-cam--bad'}
+                          title={`${cam.detail || cam.label}${cam.hint ? `\n${cam.hint}` : ''}`}
+                        >
+                          {cam.label}
+                          {cam.detail && <span className="cc-cam-detail">{cam.detail}</span>}
+                        </span>
+                      );
+                    })()}
                   </td>
                 </tr>
               );

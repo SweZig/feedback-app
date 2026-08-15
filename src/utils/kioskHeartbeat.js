@@ -76,24 +76,43 @@ export function isWithinHeartbeatWindow(now = new Date()) {
 /**
  * Skicka en heartbeat-UPSERT till Supabase. Tysta katcher — failar tyst.
  */
-async function sendHeartbeat(touchpointId, clientId) {
+async function sendHeartbeat(touchpointId, clientId, getDiagnostics) {
   if (!touchpointId) return false;
   if (!isWithinHeartbeatWindow()) return false;
 
   try {
     const userAgent = (typeof navigator !== 'undefined' && navigator.userAgent) || 'unknown';
 
+    const row = {
+      touchpoint_id: touchpointId,
+      last_seen_at:  new Date().toISOString(),
+      user_agent:    userAgent.slice(0, 500), // begränsa längd defensivt
+      client_id:     clientId,
+    };
+
+    // Sprint A.14: kameradiagnostik. Diagnostiken får aldrig sänka pulsen —
+    // kastar callbacken skickas heartbeaten ändå, utan kamerafälten.
+    if (typeof getDiagnostics === 'function') {
+      try {
+        const d = getDiagnostics() || {};
+        row.camera_state      = d.cameraState || null;
+        row.camera_detail     = d.cameraDetail ? String(d.cameraDetail).slice(0, 200) : null;
+        row.camera_resolution = d.cameraResolution || null;
+        row.camera_label      = d.cameraLabel ? String(d.cameraLabel).slice(0, 200) : null;
+        row.models_loaded     = typeof d.modelsLoaded === 'boolean' ? d.modelsLoaded : null;
+        row.secure_context    = typeof d.secureContext === 'boolean' ? d.secureContext : null;
+        row.webview_version   = Number.isFinite(d.webviewVersion) ? d.webviewVersion : null;
+        // last_face_at skrivs bara när ett ansikte faktiskt setts, annars
+        // skulle en UPSERT nolla bort tidigare träffar.
+        if (d.lastFaceAt) row.last_face_at = d.lastFaceAt;
+      } catch (e) {
+        console.warn('[heartbeat] diagnostik misslyckades:', e.message);
+      }
+    }
+
     const { error } = await supabase
       .from('kiosk_heartbeats')
-      .upsert(
-        {
-          touchpoint_id: touchpointId,
-          last_seen_at:  new Date().toISOString(),
-          user_agent:    userAgent.slice(0, 500), // begränsa längd defensivt
-          client_id:     clientId,
-        },
-        { onConflict: 'touchpoint_id' }
-      );
+      .upsert(row, { onConflict: 'touchpoint_id' });
 
     if (error) {
       // Logga bara — kasta inte. Kioskens primära flöde (svar) får aldrig brytas.
@@ -123,7 +142,7 @@ async function sendHeartbeat(touchpointId, clientId) {
  * - Alla pingar throttlas till max 1 per 60 sekunder
  * - Pingar utanför fönstret no-op:as
  */
-export function startHeartbeat(touchpointId) {
+export function startHeartbeat(touchpointId, getDiagnostics) {
   if (!touchpointId) {
     return { stop: () => {}, pingNow: () => {} };
   }
@@ -139,7 +158,7 @@ export function startHeartbeat(touchpointId) {
       return;
     }
     lastPingAt = now;
-    sendHeartbeat(touchpointId, clientId).then(ok => {
+    sendHeartbeat(touchpointId, clientId, getDiagnostics).then(ok => {
       if (ok && reason && process.env.NODE_ENV !== 'production') {
         console.log(`[heartbeat] sent (${reason})`);
       }
@@ -218,15 +237,34 @@ export async function getKioskStatuses(touchpointIds) {
   if (!Array.isArray(touchpointIds) || touchpointIds.length === 0) return result;
 
   for (const id of touchpointIds) {
-    result.set(id, { lastSeenAt: null, lastResponseAt: null });
+    result.set(id, {
+      lastSeenAt: null, lastResponseAt: null,
+      cameraState: null, cameraDetail: null, cameraResolution: null,
+      modelsLoaded: null, secureContext: null, webviewVersion: null, lastFaceAt: null,
+    });
+  }
+
+  // Sprint A.14: kamerakolumnerna finns bara efter migrationen. Har den inte
+  // körts svarar PostgREST med fel på HELA selecten, och då skulle även de
+  // gamla driftprickarna slockna. Därför ett försök till med basfälten.
+  async function fetchHeartbeats() {
+    const extended = await supabase
+      .from('kiosk_heartbeats')
+      .select('touchpoint_id, last_seen_at, camera_state, camera_detail, camera_resolution, models_loaded, secure_context, webview_version, last_face_at')
+      .in('touchpoint_id', touchpointIds);
+
+    if (!extended.error) return extended;
+
+    console.warn('[heartbeat] kamerafält saknas, faller tillbaka på basfält:', extended.error.message);
+    return supabase
+      .from('kiosk_heartbeats')
+      .select('touchpoint_id, last_seen_at')
+      .in('touchpoint_id', touchpointIds);
   }
 
   try {
     const [heartbeats, responses] = await Promise.all([
-      supabase
-        .from('kiosk_heartbeats')
-        .select('touchpoint_id, last_seen_at')
-        .in('touchpoint_id', touchpointIds),
+      fetchHeartbeats(),
       supabase
         .from('responses')
         .select('touchpoint_id, responded_at')
@@ -237,7 +275,16 @@ export async function getKioskStatuses(touchpointIds) {
     if (heartbeats.data) {
       for (const h of heartbeats.data) {
         const entry = result.get(h.touchpoint_id);
-        if (entry) entry.lastSeenAt = new Date(h.last_seen_at);
+        if (!entry) continue;
+        entry.lastSeenAt = new Date(h.last_seen_at);
+        // Sprint A.14 — kameradiagnostik
+        entry.cameraState      = h.camera_state || null;
+        entry.cameraDetail     = h.camera_detail || null;
+        entry.cameraResolution = h.camera_resolution || null;
+        entry.modelsLoaded     = h.models_loaded;
+        entry.secureContext    = h.secure_context;
+        entry.webviewVersion   = h.webview_version;
+        entry.lastFaceAt       = h.last_face_at ? new Date(h.last_face_at) : null;
       }
     }
 
@@ -256,27 +303,76 @@ export async function getKioskStatuses(touchpointIds) {
   return result;
 }
 
+// ── Kameradiagnostik (Sprint A.14) ──────────────────────────────────────────
+
+// Varje tillstånd har en åtgärd. Texten säger vad man gör, inte bara vad som hänt.
+const CAMERA_LABELS = {
+  ok:          { label: 'Kamera OK',        hint: '' },
+  denied:      { label: 'Behörighet nekad', hint: 'Ge Fully Kiosk kameratillstånd i Android-inställningarna.' },
+  notfound:    { label: 'Ingen kamera',     hint: 'Enheten hittar ingen frontkamera.' },
+  insecure:    { label: 'Osäkert ursprung', hint: 'Sidan körs inte över HTTPS. Fully Kiosks webbkameraåtkomst kräver det.' },
+  unsupported: { label: 'Stöd saknas',      hint: 'WebView saknar getUserMedia — för gammal Chromium.' },
+  error:       { label: 'Kamerafel',        hint: 'Ofta upptagen av annat, t.ex. Fullys rörelsedetektering.' },
+  pending:     { label: 'Inte testad än',   hint: 'Plattan har inte hunnit försöka öppna kameran.' },
+};
+
+/**
+ * Sammanfatta kamerans hälsa för en mätpunkt. Returnerar null när plattan
+ * aldrig rapporterat kamerastatus (heartbeat från före A.14).
+ */
+export function describeCamera(entry) {
+  if (!entry || !entry.cameraState) return null;
+
+  const base = CAMERA_LABELS[entry.cameraState] || CAMERA_LABELS.error;
+  const parts = [];
+
+  if (entry.cameraState === 'ok') {
+    if (entry.cameraResolution) parts.push(entry.cameraResolution);
+    parts.push(entry.lastFaceAt
+      ? `senaste ansikte ${formatRelativeTime(entry.lastFaceAt)}`
+      : 'inget ansikte ännu');
+  } else if (entry.cameraDetail) {
+    parts.push(entry.cameraDetail);
+  }
+
+  // Modellerna laddas över nätet — utan dem hjälper ingen kamera i världen.
+  if (entry.modelsLoaded === false) parts.push('modeller ej laddade');
+  if (Number.isFinite(entry.webviewVersion) && entry.webviewVersion < 87) {
+    parts.push(`WebView ${entry.webviewVersion} — kräver 87+`);
+  }
+
+  return {
+    state: entry.cameraState,
+    ok: entry.cameraState === 'ok',
+    label: base.label,
+    hint: base.hint,
+    detail: parts.join(' · '),
+  };
+}
+
 /**
  * Returnera mänsklig label + förklaring för en status (för tooltip).
+ * Sprint A.14: kamerans tillstånd hängs på när plattan rapporterat det.
  */
-export function describeKioskStatus(status, lastSeenAt, lastResponseAt) {
+export function describeKioskStatus(status, lastSeenAt, lastResponseAt, entry) {
   const seenAgo = lastSeenAt ? formatRelativeTime(lastSeenAt) : 'aldrig';
   const respAgo = lastResponseAt ? formatRelativeTime(lastResponseAt) : 'inga svar än';
 
+  let base;
   switch (status) {
-    case 'green':
-      return `Online · pingade ${seenAgo} · senaste svar ${respAgo}`;
-    case 'yellow':
-      return `Kanske glapp · pingade ${seenAgo} · senaste svar ${respAgo}`;
-    case 'red':
-      return `Offline · pingade ${seenAgo} · senaste svar ${respAgo}`;
-    case 'closed':
-      return `Stängt (utanför 08:15–21:00) · senaste svar ${respAgo}`;
-    case 'never':
-      return `Aldrig sett · senaste svar ${respAgo}`;
-    default:
-      return '';
+    case 'green':  base = `Online · pingade ${seenAgo} · senaste svar ${respAgo}`; break;
+    case 'yellow': base = `Kanske glapp · pingade ${seenAgo} · senaste svar ${respAgo}`; break;
+    case 'red':    base = `Offline · pingade ${seenAgo} · senaste svar ${respAgo}`; break;
+    case 'closed': base = `Stängt (utanför 08:15–21:00) · senaste svar ${respAgo}`; break;
+    case 'never':  base = `Aldrig sett · senaste svar ${respAgo}`; break;
+    default:       return '';
   }
+
+  const cam = describeCamera(entry);
+  if (!cam) return base;
+
+  const camLine = cam.detail ? `${cam.label} (${cam.detail})` : cam.label;
+  return `${base}\n${camLine}${cam.hint ? `\n${cam.hint}` : ''}`;
 }
 
 /**
