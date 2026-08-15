@@ -222,8 +222,11 @@ export default function CameraCoverage({ chain }) {
               const st = status(r.p);
               return (
                 <tr key={r.id} className={r.total === 0 ? 'cc-row--idle' : ''}>
+                  {/* Sprint A.14.1: ingen färgprick här. En rund prick i
+                     Inställningar betyder alltid "hörs plattan av" (driftstatus
+                     i Avdelningar). Täckningen bärs av stapeln och etiketten,
+                     så samma form aldrig betyder två saker. */}
                   <td>
-                    <span className="cc-dot" style={{ background: st.color }} />
                     {r.dept}
                     {r.code && <span className="cc-code">{r.code}</span>}
                   </td>
