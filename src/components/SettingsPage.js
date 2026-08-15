@@ -21,7 +21,7 @@ import {
   applyConfigToType, migrateTouchpointsFromDept,
   resetChainResponses, resetTouchpointResponses,
 } from '../utils/chainOperations';
-import { getKioskStatuses, computeKioskStatus, describeKioskStatus } from '../utils/kioskHeartbeat';
+import { getKioskStatuses, computeKioskStatus, describeKioskStatus, describeCamera } from '../utils/kioskHeartbeat';
 import {
   getOrgUsers, inviteUser, updateUserRole,
   removeUserFromOrg, getMyRole,
@@ -1518,9 +1518,11 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                       const driftStatus = isPhysical
                                         ? computeKioskStatus(driftData?.lastSeenAt)
                                         : null;
+                                      // Sprint A.14: tooltipen bär även kamerans hälsa
                                       const driftTooltip = isPhysical
-                                        ? describeKioskStatus(driftStatus, driftData?.lastSeenAt, driftData?.lastResponseAt)
+                                        ? describeKioskStatus(driftStatus, driftData?.lastSeenAt, driftData?.lastResponseAt, driftData)
                                         : '';
+                                      const camera = isPhysical ? describeCamera(driftData) : null;
                                       return (
                                         <li key={tp.id} className={'tp-item tp-item--in-dept tp-item--has-token' + (isActive ? ' tp-item--active' : '')}>
                                           <div className="tp-item-top">
@@ -1533,6 +1535,12 @@ export default function SettingsPage({ onSettingsChange, onChainSelect, initialC
                                                   title={driftTooltip}
                                                   aria-label={driftTooltip}
                                                 />
+                                              )}
+                                              {camera && !camera.ok && (
+                                                <span
+                                                  className="tp-camera-flag"
+                                                  title={`${camera.label}${camera.detail ? ` — ${camera.detail}` : ''}${camera.hint ? `\n${camera.hint}` : ''}`}
+                                                >📷</span>
                                               )}
                                               <span className="tp-mode-badge">{MODE_LABELS[tp.mode] || tp.mode}</span>
                                             </button>

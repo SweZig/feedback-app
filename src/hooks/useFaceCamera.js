@@ -26,6 +26,26 @@ import { loadFaceModels, analyzeFrame, areFaceModelsLoaded } from '../utils/face
  *      ordning. Effekten har inga deps och kör efter varje render, men
  *      kortsluter direkt om kopplingen redan är gjord.
  */
+// ── Kameradiagnostik (Sprint A.14) ──────────────────────────────────────────
+// getUserMedia-fel översätts till ett fåtal tillstånd som säger vad man ska
+// göra åt saken, i stället för att skicka vidare ett DOMException-namn.
+function classifyCameraError(err) {
+  const name = err?.name || '';
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'denied';
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError')    return 'notfound';
+  // NotReadableError = kameran hålls av någon annan, typiskt Fully Kiosks
+  // rörelsedetektering. Samma symptom som trasig kamera, helt annan åtgärd.
+  if (name === 'NotReadableError' || name === 'TrackStartError')      return 'error';
+  return 'error';
+}
+
+function webviewMajor() {
+  try {
+    const m = /Chrom(?:e|ium)\/(\d+)/.exec(navigator.userAgent || '');
+    return m ? parseInt(m[1], 10) : null;
+  } catch { return null; }
+}
+
 export function useFaceCamera() {
   const videoRef     = useRef(null);
   const streamRef    = useRef(null);
@@ -33,12 +53,39 @@ export function useFaceCamera() {
   const [cameraReady, setCameraReady] = useState(false);
   const [faceStatus,  setFaceStatus]  = useState('init');
 
+  // Diagnostiken ligger i en ref, inte i state: heartbeaten läser den
+  // synkront från en callback och ska aldrig orsaka en re-render.
+  const diagRef = useRef({
+    cameraState: 'pending',
+    cameraDetail: null,
+    cameraResolution: null,
+    cameraLabel: null,
+    lastFaceAt: null,
+  });
+
   // ── Effekt 1: skaffa stream + ladda modeller (en gång) ─────────────
   useEffect(() => {
     cancelledRef.current = false;
     loadFaceModels();
 
+    // Sprint A.14: två fel som ser identiska ut för användaren men har helt
+    // olika åtgärd fångas innan vi ens frågar efter kameran.
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      // Fully Kiosks webbkameraåtkomst kräver HTTPS-ursprung. Utan det failar
+      // getUserMedia tyst och plattan levererar noll demografi i all evighet.
+      diagRef.current.cameraState = 'insecure';
+      diagRef.current.cameraDetail = 'window.isSecureContext = false';
+    } else if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      diagRef.current.cameraState = 'unsupported';
+      diagRef.current.cameraDetail = 'mediaDevices.getUserMedia saknas';
+    }
+
     (async () => {
+      if (diagRef.current.cameraState === 'insecure' ||
+          diagRef.current.cameraState === 'unsupported') {
+        setFaceStatus('error:' + diagRef.current.cameraState);
+        return;
+      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } },
@@ -49,10 +96,23 @@ export function useFaceCamera() {
           return;
         }
         streamRef.current = stream;
+
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          const s = typeof track.getSettings === 'function' ? track.getSettings() : {};
+          diagRef.current.cameraResolution =
+            s.width && s.height ? `${s.width}x${s.height}` : null;
+          diagRef.current.cameraLabel = track.label || null;
+        }
+        diagRef.current.cameraState = 'ok';
+        diagRef.current.cameraDetail = null;
+
         // Trigga en re-render så Effekt 2 kör och hittar streamen — viktigt
         // om video-elementet redan var mountat när vi nådde hit.
         setFaceStatus('stream-ready');
       } catch (err) {
+        diagRef.current.cameraState = classifyCameraError(err);
+        diagRef.current.cameraDetail = err?.name || String(err?.message || err);
         if (!cancelledRef.current) setFaceStatus('error:' + err.name);
       }
     })();
@@ -103,8 +163,13 @@ export function useFaceCamera() {
     await new Promise(r => setTimeout(r, 0));
     try {
       const result = await analyzeFrame(videoRef.current);
-      if (result) setFaceStatus(result.ageGroup + '/' + result.gender);
-      else        setFaceStatus('no-face');
+      if (result) {
+        setFaceStatus(result.ageGroup + '/' + result.gender);
+        // Skiljer "kameran är trasig" från "ingen har stått framför den".
+        diagRef.current.lastFaceAt = new Date().toISOString();
+      } else {
+        setFaceStatus('no-face');
+      }
       return result;
     } catch (err) {
       setFaceStatus('err:' + err.message);
@@ -112,5 +177,21 @@ export function useFaceCamera() {
     }
   }
 
-  return { videoRef, captureAnalysis, cameraReady, faceStatus };
+  /**
+   * Ögonblicksbild av kamerans hälsa, läst av heartbeaten (Sprint A.14).
+   *
+   * Öppnar medvetet INGEN egen ström — ett andra getUserMedia-anrop skulle
+   * konkurrera med den här hooken om kameran och kunna slå ut det den mäter.
+   * Allt som rapporteras är biprodukter av strömmen som ändå finns.
+   */
+  function getDiagnostics() {
+    return {
+      ...diagRef.current,
+      modelsLoaded:  areFaceModelsLoaded(),
+      secureContext: typeof window !== 'undefined' ? window.isSecureContext !== false : null,
+      webviewVersion: webviewMajor(),
+    };
+  }
+
+  return { videoRef, captureAnalysis, cameraReady, faceStatus, getDiagnostics };
 }

@@ -27,3 +27,21 @@
 .tp-driftstatus-dot--red     { background: #e74c3c; border-color: #a93226; }
 .tp-driftstatus-dot--closed  { background: #b8c5cf; border-color: #8a9ba8; }
 .tp-driftstatus-dot--never   { background: transparent; border-color: #b8c5cf; }
+
+/* Sprint A.14 — kameraflagga. Visas BARA när kameran inte mår bra, så att
+   frånvaro av symbol betyder "allt är som det ska". */
+.tp-camera-flag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: help;
+  filter: grayscale(1);
+  opacity: 0.85;
+  vertical-align: middle;
+}
+
+.tp-camera-flag:hover {
+  filter: none;
+  opacity: 1;
+}

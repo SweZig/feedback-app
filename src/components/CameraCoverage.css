@@ -123,6 +123,23 @@
 .cc-never { color: #922b21; }
 .cc-muted { color: #95a5a6; }
 
+/* Sprint A.14 — kamerans självrapporterade status */
+.cc-cam {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  cursor: help;
+}
+
+.cc-cam--ok { color: var(--color-text); }
+.cc-cam--bad { color: #922b21; font-weight: 600; }
+
+.cc-cam-detail {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--color-text-light);
+}
+
 .cc-note {
   margin: 1rem 0 0;
   font-size: 0.75rem;
