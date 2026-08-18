@@ -217,7 +217,11 @@ function App() {
       const { data: memberships = [] } = await supabase
         .from('org_members')
         .select('organization_id')
-        .eq('user_id', currentUser.id);
+        .eq('user_id', currentUser.id)
+        // Deterministisk ordning — orgId nedan används bara som fallback
+        // innan aktiv kedja hunnit laddas, men utan order() var «första
+        // medlemskapet» godtyckligt mellan anrop.
+        .order('created_at');
 
       const ids = memberships.map(m => m.organization_id);
       setOrgId(ids[0] || null);
@@ -297,8 +301,18 @@ function App() {
 
   if (!user || IS_INVITE_FLOW) return <LoginPage />;
 
+  // Behörigheter är lagrade per organisation (organizations.settings.permissions)
+  // och redigeras i Inställningar → Användare → Behörigheter mot den *valda*
+  // kedjans organisation (chain.organization_id || chain.id, 1-till-1). Rollkontexten
+  // måste därför följa aktiv kedja — läste den ids[0] hamnade sparning och uppslag
+  // i olika organisationer så fort användaren var medlem i fler än en, och ändrade
+  // behörigheter (t.ex. view_demographics) slog aldrig igenom.
+  // orgId behålls som fallback innan activeCustomer hunnit laddas.
+  const roleOrganizationId =
+    activeCustomer?.organization_id || activeCustomer?.id || orgId;
+
   return (
-    <RoleProvider organizationId={orgId}>
+    <RoleProvider organizationId={roleOrganizationId}>
       <AppInner
         user={user}
         activeCustomer={activeCustomer}
