@@ -131,12 +131,24 @@ export async function savePermissions(organizationId, permissions) {
   const currentSettings = data?.settings || {};
   const newSettings = { ...currentSettings, permissions };
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('organizations')
     .update({ settings: newSettings })
-    .eq('id', organizationId);
+    .eq('id', organizationId)
+    .select('id');
 
   if (error) throw error;
+
+  // En update som inte matchar någon rad — fel organizationId eller en
+  // RLS-policy som stoppar skrivningen — returnerar inget fel från PostgREST,
+  // bara noll rader. Utan den här kontrollen rapporterar UI:t «sparat» när
+  // ingenting skrevs. Att raden är läsbar är redan bevisat av select().single()
+  // ovan, så tom retur här betyder blockerad skrivning, inte dold rad.
+  if (!updated || updated.length === 0) {
+    throw new Error(
+      'inga rader uppdaterades — kontrollera vald organisation och RLS-policyn på organizations'
+    );
+  }
 }
 
 // ─── Kontrollera om roll har behörighet ──────────────────────
