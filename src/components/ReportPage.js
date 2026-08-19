@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { fetchAllRows } from '../utils/fetchAllRows';
 import { calculateNps } from '../utils/npsCalculations';
 import { exportCsv, exportExcel } from '../utils/export';
 import { TYPE_LABELS } from '../utils/settings';
@@ -961,11 +962,16 @@ export default function ReportPage({ activeCustomer }) {
   useEffect(() => {
     if (!customerId) return;
     let cancelled = false;
-    supabase
-      .from('responses')
-      .select('*, response_answers(answer_text), response_comments(comment)')
-      .eq('chain_id', customerId)
-      .order('responded_at', { ascending: false })
+    // Pagineras: utan detta kapar PostgREST vid max-rows och rapporten tappar
+    // tyst all historik bortom de senaste tusen svaren.
+    fetchAllRows(() =>
+      supabase
+        .from('responses')
+        .select('*, response_answers(answer_text), response_comments(comment)')
+        .eq('chain_id', customerId)
+        .order('responded_at', { ascending: false })
+        .order('id', { ascending: false })
+    )
       .then(({ data = [], error }) => {
         if (cancelled) return;
         if (error) { console.error('[ReportPage]', error.message); return; }
