@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { fetchAllRows } from '../utils/fetchAllRows';
 import { isDemographicallyUsable } from './DemographicsView';
 import { getKioskStatuses, describeCamera } from '../utils/kioskHeartbeat';
 import './CameraCoverage.css';
@@ -58,11 +59,16 @@ export default function CameraCoverage({ chain }) {
     setRows(undefined);
     setError('');
 
-    supabase
-      .from('responses')
-      .select('touchpoint_id, responded_at, age_group, gender, raw_age, face_confidence, is_duplicate')
-      .eq('chain_id', chainId)
-      .order('responded_at', { ascending: false })
+    // Pagineras — täckningsgraden räknas på hela historiken, inte på de
+    // senaste tusen svaren.
+    fetchAllRows(() =>
+      supabase
+        .from('responses')
+        .select('touchpoint_id, responded_at, age_group, gender, raw_age, face_confidence, is_duplicate')
+        .eq('chain_id', chainId)
+        .order('responded_at', { ascending: false })
+        .order('id', { ascending: false })
+    )
       .then(({ data, error: err }) => {
         if (cancelled) return;
         if (err) { setError(err.message); setRows([]); return; }

@@ -14,6 +14,7 @@
 //     bara för responses/answers/comments via reset*-funktionerna.
 
 import { supabase } from './supabaseClient';
+import { fetchAllRows } from './fetchAllRows';
 
 // ────────────────────────────────────────────
 // Hjälpare — Supabase-rad → nästlat UI-format
@@ -452,35 +453,49 @@ export async function migrateTouchpointsFromDept(chainId, sourceDeptId) {
 // Hård-delete (inte soft) eftersom svar inte har deleted_at-kolumn.
 // FK-ordning: response_answers + response_comments först, sedan responses.
 
+// Raderar i satser. `.in('id', ids)` bygger en URL med ett värde per id, så en
+// enda sats med tusentals id:n spränger URL-längden långt innan den når
+// databasen. 200 åt gången håller sig med god marginal under gränsen.
+const DELETE_CHUNK = 200;
+
 async function deleteResponsesByIds(ids) {
   if (ids.length === 0) return 0;
 
-  const { error: ansErr } = await supabase
-    .from('response_answers').delete().in('response_id', ids);
-  if (ansErr) throw new Error(`Kunde inte radera svarsalternativ (${ansErr.message})`);
+  for (let i = 0; i < ids.length; i += DELETE_CHUNK) {
+    const chunk = ids.slice(i, i + DELETE_CHUNK);
 
-  const { error: comErr } = await supabase
-    .from('response_comments').delete().in('response_id', ids);
-  if (comErr) throw new Error(`Kunde inte radera kommentarer (${comErr.message})`);
+    const { error: ansErr } = await supabase
+      .from('response_answers').delete().in('response_id', chunk);
+    if (ansErr) throw new Error(`Kunde inte radera svarsalternativ (${ansErr.message})`);
 
-  const { error: respErr } = await supabase
-    .from('responses').delete().in('id', ids);
-  if (respErr) throw new Error(`Kunde inte radera svar (${respErr.message})`);
+    const { error: comErr } = await supabase
+      .from('response_comments').delete().in('response_id', chunk);
+    if (comErr) throw new Error(`Kunde inte radera kommentarer (${comErr.message})`);
+
+    const { error: respErr } = await supabase
+      .from('responses').delete().in('id', chunk);
+    if (respErr) throw new Error(`Kunde inte radera svar (${respErr.message})`);
+  }
 
   return ids.length;
 }
 
+// Hämtningen av id:n pagineras. Utan det raderade nollställningen bara de
+// första tusen svaren men rapporterade ändå "klart" — kedjan såg nollställd
+// ut i dialogrutan medan resten låg kvar i tabellen.
 export async function resetChainResponses(chainId) {
-  const { data = [], error } = await supabase
-    .from('responses').select('id').eq('chain_id', chainId);
+  const { data = [], error } = await fetchAllRows(() =>
+    supabase.from('responses').select('id').eq('chain_id', chainId).order('id')
+  );
   if (error) throw new Error(`Kunde inte hämta svar (${error.message})`);
   const deleted = await deleteResponsesByIds(data.map(r => r.id));
   return { deleted };
 }
 
 export async function resetTouchpointResponses(touchpointId) {
-  const { data = [], error } = await supabase
-    .from('responses').select('id').eq('touchpoint_id', touchpointId);
+  const { data = [], error } = await fetchAllRows(() =>
+    supabase.from('responses').select('id').eq('touchpoint_id', touchpointId).order('id')
+  );
   if (error) throw new Error(`Kunde inte hämta svar (${error.message})`);
   const deleted = await deleteResponsesByIds(data.map(r => r.id));
   return { deleted };
