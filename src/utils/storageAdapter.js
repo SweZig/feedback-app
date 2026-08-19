@@ -18,6 +18,17 @@ function logError(context, error) {
   console.error(`[storageAdapter] ${context}:`, error?.message || error);
 }
 
+// UUID-fallback för miljöer utan crypto.randomUUID (äldre WebView).
+function generateResponseId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : ((r & 0x3) | 0x8)).toString(16);
+  });
+}
+
 
 // ════════════════════════════════════════════
 // AUTH
@@ -74,8 +85,10 @@ export async function saveResponse(response) {
       metadata.followUpEmail = response.followUpEmail.trim();
     }
 
+    const responseId = response.id || generateResponseId();
+
     const payload = {
-      id:            response.id,
+      id:            responseId,
       touchpoint_id: response.touchpointId,
       chain_id:      response.chainId,
       score:         score,
@@ -85,18 +98,21 @@ export async function saveResponse(response) {
       metadata,
     };
 
-    const { data: insertedResponse, error: respError } = await supabase
+    // Ingen .select() efter skrivningen. Returraden skulle kräva SELECT-
+    // rättighet för anon, och det är just den rättigheten som gör hela
+    // svarstabellen publikt läsbar. id:t sätts av klienten och är redan känt.
+    // ignoreDuplicates ger ON CONFLICT DO NOTHING — fortsatt idempotent vid
+    // retry, men utan att kräva UPDATE.
+    const { error: respError } = await supabase
       .from('responses')
-      .upsert(payload, { onConflict: 'id' })
-      .select()
-      .single();
+      .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
     if (respError) throw respError;
 
     // Spara valda svarsalternativ som text (answer_text), inte UUID
     const selectedTexts = (response.selectedAnswers || []).filter(t => t);
     if (selectedTexts.length > 0) {
       const answerPayload = selectedTexts.map(text => ({
-        response_id: insertedResponse.id,
+        response_id: responseId,
         answer_text: text,
       }));
       const { error: answersError } = await supabase
@@ -110,7 +126,7 @@ export async function saveResponse(response) {
       const { error: commentError } = await supabase
         .from('response_comments')
         .insert({
-          response_id: insertedResponse.id,
+          response_id: responseId,
           comment:     response.comment.trim(),
         });
       if (commentError) throw commentError;

@@ -129,7 +129,10 @@ async function saveKioskResponse({
   const metadata = {};
   if (followUpEmail?.trim()) metadata.followUpEmail = followUpEmail.trim();
 
-  const { data: resp, error: respError } = await supabase
+  // Ingen .select(): returraden skulle kräva SELECT-rättighet för anon, och
+  // det är den rättigheten som gör hela svarstabellen publikt läsbar.
+  // responseId sätts av klienten ovan och är redan känt.
+  const { error: respError } = await supabase
     .from('responses')
     .insert({
       id:            responseId,
@@ -148,15 +151,13 @@ async function saveKioskResponse({
       raw_age:         Number.isFinite(rawAge)     ? Math.round(rawAge) : null,
       face_confidence: Number.isFinite(confidence) ? confidence         : null,
       is_duplicate:  isDuplicate  || false,
-    })
-    .select()
-    .single();
+    });
 
   if (respError) throw respError;
 
   if (comment?.trim()) {
     await supabase.from('response_comments').insert({
-      response_id: resp.id,
+      response_id: responseId,
       comment:     comment.trim(),
     });
   }
@@ -164,7 +165,7 @@ async function saveKioskResponse({
   if (selectedAnswer?.trim()) {
     try {
       await supabase.from('response_answers').insert({
-        response_id: resp.id,
+        response_id: responseId,
         answer_text: selectedAnswer.trim(),
       });
     } catch (e) {
@@ -172,7 +173,7 @@ async function saveKioskResponse({
     }
   }
 
-  return resp;
+  return { id: responseId };
 }
 
 // UUID-fallback för äldre Android/WebView som saknar crypto.randomUUID()
